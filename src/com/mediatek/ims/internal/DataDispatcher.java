@@ -46,7 +46,7 @@ public class DataDispatcher implements ImsEventDispatcher.VaEventDispatcher {
     private Context mContext;
     private int mPhoneId, mSubId;
     private ImsDataTracker mTracker;
-    private boolean mIsEnable = false;
+    private boolean mIsEnable;
     private Object mLock = new Object();
 
     private DataDispatcherUtil mDataDispatcherUtil;
@@ -58,6 +58,9 @@ public class DataDispatcher implements ImsEventDispatcher.VaEventDispatcher {
     static final int MSG_ID_WRAP_IMSM_IMSPA_PDN_DEACT_COMPLETED = 800002;
     static final int MSG_ID_WRAP_IMSM_IMSPA_PDN_ACT_FAIL = 800003;
     static final int MSG_ID_WRAP_IMSM_IMSPA_PDN_ABORT = 800004;
+
+    static final int MSG_ON_NOTIFY_ACTIVE_DATA_TIMEOUT = 800005;
+    static final int MAX_NETWORK_ACTIVE_TIMEOUT_MS = 20000;
 
     private final int MSG_ID_IMSA_DISABLE_SERVICE = 700001;
 
@@ -162,11 +165,15 @@ public class DataDispatcher implements ImsEventDispatcher.VaEventDispatcher {
                     TelephonyManager.ACTION_PRECISE_DATA_CONNECTION_STATE_CHANGED)) {
                 String type = intent.getStringExtra(PhoneConstants.DATA_APN_TYPE_KEY);
                 String failure = intent.getStringExtra(PhoneConstants.DATA_FAILURE_CAUSE_KEY);
-                int subId = intent.getIntExtra(PhoneConstants.SUBSCRIPTION_KEY,
-                        SubscriptionManager.INVALID_SUBSCRIPTION_ID);
-                logd("ACTION_PRECISE_DATA_CONNECTION_STATE_CHANGED subId: " + subId + ", mSubId: " + mSubId);
+                //int subId = intent.getIntExtra(PhoneConstants.SUBSCRIPTION_KEY,
+                //        SubscriptionManager.INVALID_SUBSCRIPTION_ID);
+                int phoneId = intent.getIntExtra(PhoneConstants.PHONE_KEY,
+                                                 SubscriptionManager.INVALID_PHONE_INDEX);
+                int mCurrentPhoneId = SubscriptionManager.getPhoneId(mSubId);
+                logd("ACTION_PRECISE_DATA_CONNECTION_STATE_CHANGED phoneId: " + phoneId +
+                     ", mCurrentPhoneId: " + mCurrentPhoneId);
 
-                if (mSubId == subId && failure != null && failure.length() > 0) {
+                if (phoneId == mCurrentPhoneId && failure != null && failure.length() > 0) {
                     logd("onReceive, intent action is " + intent.getAction());
                     logd("APN: " + type + " failCause: " + failure);
                     switch(type) {
@@ -174,6 +181,7 @@ public class DataDispatcher implements ImsEventDispatcher.VaEventDispatcher {
                             Handler imsHandle = mImsConnection.getHandler();
                             imsHandle.sendMessage(
                                 imsHandle.obtainMessage(MSG_ID_WRAP_IMSM_IMSPA_PDN_ACT_FAIL, failure));
+                            mHandler.removeMessages(MSG_ON_NOTIFY_ACTIVE_DATA_TIMEOUT);
                             break;
                         case PhoneConstants.APN_TYPE_EMERGENCY:
                             Handler emcHandle = mEmcConnection.getHandler();
@@ -195,6 +203,7 @@ public class DataDispatcher implements ImsEventDispatcher.VaEventDispatcher {
         mPhoneId = phoneId;
         mSubId = SubscriptionManagerHelper.getSubIdUsingPhoneId(mPhoneId);
         mTracker = tracker;
+        mHandlerThread.start();
         mDcHandlerThread = new HandlerThread("DcHandlerThread");
         mDcHandlerThread.start();
         mImsConnection = new DataConnection(PhoneConstants.APN_TYPE_IMS,
@@ -220,12 +229,11 @@ public class DataDispatcher implements ImsEventDispatcher.VaEventDispatcher {
     public void disableRequest(int phoneId) {
         logi("receive disableRequest");
         synchronized (mLock) {
-            if (mIsEnable) {
-                mIsEnable = false;
-                mContext.unregisterReceiver(mReceiver);
-                mImsConnection.disable();
-                mEmcConnection.disable();
-            }
+            mIsEnable = false;
+            mHandler.removeMessages(MSG_ON_NOTIFY_ACTIVE_DATA_TIMEOUT);
+            mContext.unregisterReceiver(mReceiver);
+            mImsConnection.disable();
+            mEmcConnection.disable();
         }
     }
 
@@ -303,6 +311,29 @@ public class DataDispatcher implements ImsEventDispatcher.VaEventDispatcher {
     public void loge(String s) {
         Rlog.e(TAG, "[" + mPhoneId + "]" + s);
     }
+
+    private Handler mHandler;
+    private Thread mHandlerThread = new Thread() {
+        @Override
+        public void run() {
+            Looper.prepare();
+            mHandler = new Handler() { // create handler here
+                @Override
+                synchronized public void handleMessage(Message msg) {
+                    logd("receives request [" + msg.what + "]");
+
+                    switch (msg.what) {
+                        case MSG_ON_NOTIFY_ACTIVE_DATA_TIMEOUT:
+                            mImsConnection.onImsRequestTimeout();
+                            break;
+                        default:
+                            logd("receives unhandled message [" + msg.what + "]");
+                    }
+                }
+            };
+            Looper.loop();
+        }
+    };
 
     public class DataConnection extends StateMachine {
 
@@ -586,7 +617,12 @@ public class DataDispatcher implements ImsEventDispatcher.VaEventDispatcher {
             NetworkRequest nwRequest = builder.build();
 
             refreshNwLostCallBack(nwRequest);
-
+            if (mCapabiliy == NetworkCapabilities.NET_CAPABILITY_IMS) {
+                mHandler.removeMessages(MSG_ON_NOTIFY_ACTIVE_DATA_TIMEOUT);
+                mHandler.sendMessageDelayed(mHandler.obtainMessage(
+                      MSG_ON_NOTIFY_ACTIVE_DATA_TIMEOUT),
+                      MAX_NETWORK_ACTIVE_TIMEOUT_MS);
+            }
             logd("start requestNetwork for " + getName());
             mConnectivityManager.requestNetwork(nwRequest, mNwAvailableCallback);
             return true;
@@ -600,6 +636,7 @@ public class DataDispatcher implements ImsEventDispatcher.VaEventDispatcher {
                 logd("found Req: " + mImsNetworkRequests.valueAt(i));
             }
             if (n != null) {
+                mHandler.removeMessages(MSG_ON_NOTIFY_ACTIVE_DATA_TIMEOUT);
                 StringBuilder builder = new StringBuilder();
                 builder.append(n.getTransId() + ",");
                 builder.append(mPhoneId + ",");
@@ -649,7 +686,7 @@ public class DataDispatcher implements ImsEventDispatcher.VaEventDispatcher {
             logd("releaseNetwork");
             ImsBearerRequest n = mImsNetworkRequests.get(
                         VaConstants.MSG_ID_WRAP_IMSM_IMSPA_PDN_DEACT_REQ);
-
+            mHandler.removeMessages(MSG_ON_NOTIFY_ACTIVE_DATA_TIMEOUT);
             try {
                 mConnectivityManager.unregisterNetworkCallback(mNwAvailableCallback);
             } catch (IllegalArgumentException ex) {
@@ -766,6 +803,21 @@ public class DataDispatcher implements ImsEventDispatcher.VaEventDispatcher {
             }
         }
 
+        public void onImsRequestTimeout() {
+            logd("onImsRequestTimeout");
+            ImsBearerRequest n1 = mImsNetworkRequests.get(
+                    VaConstants.MSG_ID_WRAP_IMSM_IMSPA_PDN_ACT_REQ);
+            if (n1 != null) {
+                logd("get request type " + n1.getCapability());
+                if(n1.getCapability() == PhoneConstants.APN_TYPE_IMS) {
+                    Handler imsHandle = mImsConnection.getHandler();
+                    imsHandle.sendMessage(
+                       imsHandle.obtainMessage(MSG_ID_WRAP_IMSM_IMSPA_PDN_ACT_FAIL, FAILCAUSE_UNKNOWN));
+                    mHandler.removeMessages(MSG_ON_NOTIFY_ACTIVE_DATA_TIMEOUT);
+                }
+            }
+        }
+
         private void refreshNwLostCallBack(NetworkRequest nwRequest) {
             logd("refreshNwLostCallBack nwRequest: " + nwRequest);
 
@@ -791,7 +843,7 @@ public class DataDispatcher implements ImsEventDispatcher.VaEventDispatcher {
                     loge("onAvailable: network is null");
                     return;
                 }
-
+                mHandler.removeMessages(MSG_ON_NOTIFY_ACTIVE_DATA_TIMEOUT);
                 LinkProperties mLink = mConnectivityManager.getLinkProperties(network);
                 if (mLink == null) {
                     loge("LinkProperties is null");
@@ -818,7 +870,7 @@ public class DataDispatcher implements ImsEventDispatcher.VaEventDispatcher {
 
             @Override
             public void onLost(Network network) {
-
+                mHandler.removeMessages(MSG_ON_NOTIFY_ACTIVE_DATA_TIMEOUT);
                 NetworkInfo netInfo = mConnectivityManager.getNetworkInfo(network);
                 logd("onLost: networInfo: " + netInfo);
                 mConn.sendMessage(mConn.obtainMessage(

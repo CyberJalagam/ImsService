@@ -38,8 +38,14 @@ LOCAL_PATH := $(call my-dir)
 #  IMS WWOP RIL                                                                           #
 ###########################################################################################
 
-build_ims_legacy_library := yes
-ifeq ($(strip $(build_ims_legacy_library)), yes)
+build_ims_legacy_library := true
+
+# No need to build legacy IMS SS if no telephony add on
+ifeq ($(strip $(MSSI_MTK_TELEPHONY_ADD_ON_POLICY)), 1)
+build_ims_legacy_library := false
+endif
+
+ifeq ($(strip $(build_ims_legacy_library)), true)
 
 include $(CLEAR_VARS)
 
@@ -50,7 +56,8 @@ LOCAL_MODULE_TAGS := optional
 
 LOCAL_APK_LIBRARIES := ImsService
 LOCAL_JAVA_LIBRARIES := telephony-common ims-common
-LOCAL_JAVA_LIBRARIES += mediatek-telephony-base mediatek-ims-common  mediatek-telephony-common
+LOCAL_JAVA_LIBRARIES += mediatek-telephony-base mediatek-ims-common mediatek-telephony-common
+LOCAL_JAVA_LIBRARIES += mediatek-ims-base
 
 # Use SimServs.jar for VoLTE MMTelSS Package
 LOCAL_STATIC_JAVA_LIBRARIES += Simservs

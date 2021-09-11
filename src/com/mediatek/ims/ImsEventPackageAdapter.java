@@ -35,8 +35,6 @@
 
 package com.mediatek.ims;
 
-import java.util.ArrayList;
-
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -44,13 +42,18 @@ import android.os.AsyncResult;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.support.v4.content.LocalBroadcastManager;
 import android.telephony.ims.ImsExternalCallState;
 import android.telephony.Rlog;
 
 import com.mediatek.ims.ImsConstants;
 import com.mediatek.ims.ril.ImsCommandsInterface;
 
-import vendor.mediatek.hardware.radio.V3_0.Dialog;
+import java.lang.reflect.Constructor;
+import java.util.ArrayList;
+
+import vendor.mediatek.hardware.mtkradioex.V1_0.Dialog;
+
 /**
  * ImsEventPackageAdapter, adapter class to handle event package
  */
@@ -79,6 +82,9 @@ public class ImsEventPackageAdapter {
     static final int EVENT_LTE_MESSAGE_WAITING = 0;
     static final int EVENT_IMS_DIALOG_INDICATION = 1;
 
+    // For customer's customization.
+    static Constructor sImsExternalCallStateConstructfunc = null;
+
     ImsEventPackageAdapter(Context ctx, Handler handler, ImsCommandsInterface imsRilAdapter,
                            int phoneId) {
         Rlog.d(LOG_TAG, "ImsEventPackageAdapter()");
@@ -88,6 +94,7 @@ public class ImsEventPackageAdapter {
         mPhoneId = phoneId;
         mImsRilAdapter.registerForLteMsgWaiting(mHandler, EVENT_LTE_MESSAGE_WAITING, null);
         mImsRilAdapter.registerForImsDialog(mHandler, EVENT_IMS_DIALOG_INDICATION, null);
+        needToReportMoreInfo();
     }
 
     public void close() {
@@ -133,7 +140,7 @@ public class ImsEventPackageAdapter {
         intent.putExtra(ImsConstants.EXTRA_LTE_MWI_BODY, mMWIData);
         intent.putExtra(ImsConstants.EXTRA_PHONE_ID, mPhoneId);
         intent.addFlags(Intent.FLAG_RECEIVER_INCLUDE_BACKGROUND);
-        mContext.sendBroadcast(intent);
+        mContext.sendBroadcast(intent, ImsConstants.PERMISSION_READ_LTE_MESSAGE_WAITING_INDICATION);
 
     }
 
@@ -155,19 +162,70 @@ public class ImsEventPackageAdapter {
         Rlog.d(LOG_TAG, "handleDialogEventPackage()");
 
         ArrayList<ImsExternalCallState> result = new ArrayList<ImsExternalCallState>();
-        for (Dialog dialog : dialogList) {
-            Uri addr = Uri.parse(dialog.address);
-            ImsExternalCallState exCallState = new ImsExternalCallState(dialog.dialogId,
-                    addr, dialog.isPullable, dialog.callState,
-                    dialog.callType, dialog.isCallHeld);
-            result.add(exCallState);
-            Rlog.d(LOG_TAG, "handleDialogEventPackage exCallState:" + dialog.dialogId +
-                    dialog.address + dialog.isPullable + dialog.callState +
-                    dialog.callType + dialog.isCallHeld);
+
+        if (sImsExternalCallStateConstructfunc == null) {
+            for (Dialog dialog : dialogList) {
+                Uri localAddr = Uri.parse(dialog.address);
+                Uri addr = Uri.parse(dialog.remoteAddress);
+                ImsExternalCallState exCallState = new ImsExternalCallState(dialog.dialogId,
+                        addr, localAddr, dialog.isPullable, dialog.callState,
+                        dialog.callType, dialog.isCallHeld);
+                result.add(exCallState);
+                Rlog.d(LOG_TAG, "handleDialogEventPackage exCallState:" + dialog.dialogId +
+                        ImsServiceCallTracker.sensitiveEncode(dialog.remoteAddress) +
+                        ImsServiceCallTracker.sensitiveEncode(dialog.address) +
+                        dialog.isPullable + dialog.callState + dialog.callType + dialog.isCallHeld);
+            }
+        } else {
+            for (Dialog dialog : dialogList) {
+                Uri localAddr = Uri.parse(dialog.address);
+                Uri addr = Uri.parse(dialog.remoteAddress);
+                ImsExternalCallState exCallState = null;
+                try {
+                    exCallState =
+                            (ImsExternalCallState) sImsExternalCallStateConstructfunc.newInstance(
+                            dialog.dialogId, addr, localAddr, dialog.isPullable, dialog.callState,
+                            dialog.callType, dialog.isCallHeld, dialog.isMt);
+                } catch (Exception e) {
+                    Rlog.d(LOG_TAG, "Use AOSP default ImsExternalCallState.");
+                    exCallState = new ImsExternalCallState(dialog.dialogId,
+                            addr, localAddr, dialog.isPullable, dialog.callState,
+                            dialog.callType, dialog.isCallHeld);
+                }
+                result.add(exCallState);
+                Rlog.d(LOG_TAG, "handleDialogEventPackage exCallState:" + dialog.dialogId +
+                        ImsServiceCallTracker.sensitiveEncode(dialog.remoteAddress) +
+                        ImsServiceCallTracker.sensitiveEncode(dialog.address) +
+                        dialog.isPullable + dialog.callState + dialog.callType +
+                        dialog.isCallHeld + dialog.isMt);
+            }
         }
         Intent intent = new Intent(ImsConstants.ACTION_IMS_DIALOG_EVENT_PACKAGE);
         intent.putParcelableArrayListExtra(ImsConstants.EXTRA_DEP_CONTENT, result);
-        mContext.sendBroadcast(intent);
+        LocalBroadcastManager.getInstance(mContext).sendBroadcast(intent);
+    }
+
+    private void needToReportMoreInfo() {
+        if (sImsExternalCallStateConstructfunc == null) {
+            // Use the designated constructor with parameters
+            Class[] cParam = new Class[8];
+            cParam[0] = Integer.TYPE;
+            cParam[1] = Uri.class;
+            cParam[2] = Uri.class;
+            cParam[3] = Boolean.class;
+            cParam[4] = Integer.TYPE;
+            cParam[5] = Integer.TYPE;
+            cParam[6] = Boolean.class;
+            cParam[7] = Boolean.class;
+
+            try {
+                Constructor sImsExternalCallStateConstructfunc
+                        = ImsExternalCallState.class.getDeclaredConstructor(cParam);
+                Rlog.d(LOG_TAG, "constructor function = " + sImsExternalCallStateConstructfunc);
+            } catch (Exception e) {
+                Rlog.d(LOG_TAG, "Use AOSP default ImsExternalCallState.");
+            }
+        }
     }
 
     private class MyHandler extends Handler {

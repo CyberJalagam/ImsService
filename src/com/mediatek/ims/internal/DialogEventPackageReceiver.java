@@ -5,13 +5,12 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.support.v4.content.LocalBroadcastManager;
 import android.telephony.Rlog;
-
 import android.telephony.ims.ImsExternalCallState;
+
 import com.mediatek.ims.ImsCommonUtil;
 import com.mediatek.ims.ImsConstants;
-
-import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -19,6 +18,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.xmlpull.v1.XmlPullParserException;
 
 /**
  * Responsible for receiving broadcast of Dialog Event Package.
@@ -70,7 +71,7 @@ public class DialogEventPackageReceiver {
     private void registerForBroadcast(Context context) {
         final IntentFilter filter = new IntentFilter();
         filter.addAction(ImsConstants.ACTION_IMS_DIALOG_EVENT_PACKAGE);
-        context.registerReceiver(mReceiver, filter);
+        LocalBroadcastManager.getInstance(context).registerReceiver(mReceiver, filter);
     }
 
     private BroadcastReceiver mReceiver = new BroadcastReceiver() {

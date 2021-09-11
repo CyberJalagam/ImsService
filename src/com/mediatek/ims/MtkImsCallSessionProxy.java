@@ -52,19 +52,11 @@ import com.mediatek.ims.internal.IMtkImsCallSession;
 import com.mediatek.ims.internal.IMtkImsCallSessionListener;
 import com.mediatek.ims.ril.ImsCommandsInterface;
 
-import com.mediatek.ims.internal.op.OpImsCallSessionProxy;
-import com.mediatek.ims.internal.op.OpImsServiceCall;
-import com.mediatek.ims.internal.op.OpImsServiceFactory;
-import com.mediatek.ims.internal.op.OpImsServiceFactoryBase;
-
 public class MtkImsCallSessionProxy implements AutoCloseable {
     private static final String LOG_TAG = "MtkImsCallSessionProxy";
     private static final boolean DBG = true;
     private ImsCallSessionProxy mAospImsCallSessionProxy;
     private IMtkImsCallSessionListener mMtkListener;
-
-    private OpImsServiceCall mOpImsServiceCall;
-    private OpImsCallSessionProxy mOpExt;
 
     private class ImsCallLogLevel {
         public static final int VERBOSE     = 1;
@@ -112,8 +104,8 @@ public class MtkImsCallSessionProxy implements AutoCloseable {
         }
 
         @Override
-        public void sendDtmfbyTarget(char c, Message result, Messenger target) {
-            MtkImsCallSessionProxy.this.sendDtmfbyTarget(c, result, target);
+        public void approveEccRedial(boolean isAprroved) {
+            MtkImsCallSessionProxy.this.approveEccRedial(isAprroved);
         }
 
         @Override
@@ -137,21 +129,6 @@ public class MtkImsCallSessionProxy implements AutoCloseable {
         }
 
         @Override
-        public void notifyRttECCRedialEvent() {
-            MtkImsCallSessionProxy.this.notifyRttECCRedialEvent();
-        }
-
-        @Override
-        public void notifyTextCapabilityChanged(
-            int localCapability, int remoteCapability, int localTextStatus,
-            int realRemoteCapability) {
-
-            MtkImsCallSessionProxy.this.notifyTextCapabilityChanged(
-                    localCapability, remoteCapability, localTextStatus,
-                    realRemoteCapability);
-        }
-
-        @Override
         public void notifyDeviceSwitchFailed(ImsReasonInfo reasonInfo) {
             MtkImsCallSessionProxy.this.notifyDeviceSwitchFailed(reasonInfo);
         }
@@ -172,8 +149,18 @@ public class MtkImsCallSessionProxy implements AutoCloseable {
         }
 
         @Override
-        public void notifyRttSpeechEvent(int speech) {
-            MtkImsCallSessionProxy.this.notifyRttSpeechEvent(speech);
+        public void setImsCallMode(int mode) {
+            MtkImsCallSessionProxy.this.setImsCallMode(mode);
+        }
+
+        @Override
+        public void removeLastParticipant() {
+            MtkImsCallSessionProxy.this.removeLastParticipant();
+        }
+
+        @Override
+        public String getHeaderCallId() {
+            return MtkImsCallSessionProxy.this.getHeaderCallId();
         }
     };
 
@@ -181,10 +168,6 @@ public class MtkImsCallSessionProxy implements AutoCloseable {
                            ImsCallSessionListener listener, ImsService imsService,
                            Handler handler, ImsCommandsInterface ci,
                            String callId, int phoneId) {
-
-        OpImsServiceFactory factory = OpImsServiceFactoryBase.getInstance();
-        mOpImsServiceCall = factory.makeOpImsServiceCall(context, phoneId);
-        mOpExt = factory.makeOpImsCallSessionProxy();
     }
 
     // Constructor for MO call
@@ -198,16 +181,19 @@ public class MtkImsCallSessionProxy implements AutoCloseable {
 
     public void close() {
 
-        logWithCallId("close() : MtkImsCallSessionProxy is going to be closed!!! ", ImsCallLogLevel.DEBUG);
+        logWithCallId("close() : MtkImsCallSessionProxy is going to be closed!!! ",
+                ImsCallLogLevel.DEBUG);
 
-        mAospImsCallSessionProxy.close();
-        mAospImsCallSessionProxy = null;
+        if (mAospImsCallSessionProxy != null) {
+            mAospImsCallSessionProxy.close();
+            mAospImsCallSessionProxy = null;
+        }
         mMtkListener = null;
     }
 
     public String getCallId() {
-        if (mAospImsCallSessionProxy.getServiceImpl() == null) {
-            logWithCallId("getCallId() : mCallSessionImpl is null", ImsCallLogLevel.DEBUG);
+        if (mAospImsCallSessionProxy == null || mAospImsCallSessionProxy.getServiceImpl() == null) {
+            logWithCallId("getCallId() : mCallSessionImpl is null", ImsCallLogLevel.ERROR);
             return "";
         }
 
@@ -220,15 +206,16 @@ public class MtkImsCallSessionProxy implements AutoCloseable {
     }
 
     public ImsCallProfile getCallProfile(){
-        if (mAospImsCallSessionProxy.getServiceImpl() == null) {
-            logWithCallId("getCallProfile() : mCallSessionImpl is null", ImsCallLogLevel.DEBUG);
+        if (mAospImsCallSessionProxy == null || mAospImsCallSessionProxy.getServiceImpl() == null) {
+            logWithCallId("getCallProfile() : mCallSessionImpl is null", ImsCallLogLevel.ERROR);
             return null;
         }
 
         try {
             return mAospImsCallSessionProxy.getServiceImpl().getCallProfile();
         } catch (RemoteException e) {
-            logWithCallId("getCallProfile() : RemoteException getCallProfile()", ImsCallLogLevel.ERROR);
+            logWithCallId("getCallProfile() : RemoteException getCallProfile()",
+                    ImsCallLogLevel.ERROR);
             return null;
         }
 
@@ -239,32 +226,42 @@ public class MtkImsCallSessionProxy implements AutoCloseable {
     }
 
     public IImsCallSession getIImsCallSession() {
+        if (mAospImsCallSessionProxy == null) {
+            logWithCallId("getIImsCallSession() : mAospImsCallSessionProxy is null",
+                    ImsCallLogLevel.ERROR);
+            return null;
+        }
         return mAospImsCallSessionProxy.getServiceImpl();
     }
 
     void setIImsCallSession(IImsCallSession iSession) {
-        mAospImsCallSessionProxy.setServiceImpl(iSession);
+        if (mAospImsCallSessionProxy != null) {
+            mAospImsCallSessionProxy.setServiceImpl(iSession);
+        }
     }
 
     public boolean isIncomingCallMultiparty() {
-        if (mAospImsCallSessionProxy.getServiceImpl() == null) {
-            logWithCallId("isIncomingCallMultiparty() : mCallSessionImpl is null", ImsCallLogLevel.DEBUG);
+        if (mAospImsCallSessionProxy == null || mAospImsCallSessionProxy.getServiceImpl() == null) {
+            logWithCallId("isIncomingCallMultiparty() : mCallSessionImpl is null",
+                    ImsCallLogLevel.ERROR);
             return false;
         }
         return mAospImsCallSessionProxy.isIncomingCallMultiparty();
     }
 
-    public void sendDtmfbyTarget(char c, Message result, Messenger target) {
-        if (mAospImsCallSessionProxy.getServiceImpl() == null) {
-            logWithCallId("sendDtmfbyTarget() : mCallSessionImpl is null", ImsCallLogLevel.DEBUG);
+    public void approveEccRedial(boolean isAprroved) {
+        if (mAospImsCallSessionProxy == null || mAospImsCallSessionProxy.getServiceImpl() == null) {
+            logWithCallId("approveEccRedial() : mCallSessionImpl is null",
+                    ImsCallLogLevel.ERROR);
             return;
         }
-        mAospImsCallSessionProxy.sendDtmfbyTarget(c, result, target);
+        mAospImsCallSessionProxy.approveEccRedial(isAprroved);
     }
 
     public void explicitCallTransfer() {
         if (mAospImsCallSessionProxy == null) {
-            logWithCallId("explicitCallTransfer() : mCallSessionImpl is null", ImsCallLogLevel.DEBUG);
+            logWithCallId("explicitCallTransfer() : mAospImsCallSessionProxy is null",
+                    ImsCallLogLevel.ERROR);
             return;
         }
         mAospImsCallSessionProxy.explicitCallTransfer();
@@ -272,7 +269,8 @@ public class MtkImsCallSessionProxy implements AutoCloseable {
 
     public void unattendedCallTransfer(String number, int type) {
         if (mAospImsCallSessionProxy == null) {
-            logWithCallId("unattendedCallTransfer() : mCallSessionImpl is null", ImsCallLogLevel.DEBUG);
+            logWithCallId("unattendedCallTransfer() : mAospImsCallSessionProxy is null",
+                    ImsCallLogLevel.ERROR);
             return;
         }
         mAospImsCallSessionProxy.unattendedCallTransfer(number, type);
@@ -280,7 +278,7 @@ public class MtkImsCallSessionProxy implements AutoCloseable {
 
     public void deviceSwitch(String number, String deviceId) {
         if (mAospImsCallSessionProxy == null) {
-            logWithCallId("deviceSwitch() : mCallSessionImpl is null", ImsCallLogLevel.DEBUG);
+            logWithCallId("deviceSwitch() : mAospImsCallSessionProxy is null", ImsCallLogLevel.ERROR);
             return;
         }
         mAospImsCallSessionProxy.deviceSwitch(number, deviceId);
@@ -288,7 +286,7 @@ public class MtkImsCallSessionProxy implements AutoCloseable {
 
     public void cancelDeviceSwitch() {
         if (mAospImsCallSessionProxy == null) {
-            logWithCallId("cancelDeviceSwitch() : mCallSessionImpl is null", ImsCallLogLevel.DEBUG);
+            logWithCallId("cancelDeviceSwitch() : mAospImsCallSessionProxy is null", ImsCallLogLevel.ERROR);
             return;
         }
         mAospImsCallSessionProxy.cancelDeviceSwitch();
@@ -296,37 +294,40 @@ public class MtkImsCallSessionProxy implements AutoCloseable {
 
     void notifyTransferred() {
         if (mMtkListener == null) {
-            logWithCallId("notifyTransferred() : mMtkListener is null", ImsCallLogLevel.DEBUG);
+            logWithCallId("notifyTransferred() : mMtkListener is null", ImsCallLogLevel.ERROR);
             return;
         }
         try {
             mMtkListener.callSessionTransferred(mServiceImpl);
         } catch (RemoteException e) {
-            logWithCallId("notifyTransferred() : RemoteException callSessionTransferred()", ImsCallLogLevel.ERROR);
+            logWithCallId("notifyTransferred() : RemoteException callSessionTransferred()",
+                    ImsCallLogLevel.ERROR);
         }
     }
 
     void notifyTransferFailed(ImsReasonInfo reasonInfo) {
         if (mMtkListener == null) {
-            logWithCallId("notifyTransferFailed() : mMtkListener is null", ImsCallLogLevel.DEBUG);
+            logWithCallId("notifyTransferFailed() : mMtkListener is null", ImsCallLogLevel.ERROR);
             return;
         }
         try {
             mMtkListener.callSessionTransferFailed(mServiceImpl, reasonInfo);
         } catch (RemoteException e) {
-            logWithCallId("notifyTransferFailed() : RemoteException callSessionTransferFailed()", ImsCallLogLevel.ERROR);
+            logWithCallId("notifyTransferFailed() : RemoteException callSessionTransferFailed()",
+                    ImsCallLogLevel.ERROR);
         }
     }
 
     public void notifyDeviceSwitched() {
         if (mMtkListener == null) {
-            logWithCallId("notifyDeviceSwitched() : mMtkListener is null", ImsCallLogLevel.DEBUG);
+            logWithCallId("notifyDeviceSwitched() : mMtkListener is null", ImsCallLogLevel.ERROR);
             return;
         }
         try {
             mMtkListener.callSessionDeviceSwitched(mServiceImpl);
         } catch (RemoteException e) {
-            logWithCallId("notifyDeviceSwitched() : RemoteException notifyDeviceSwitched()", ImsCallLogLevel.ERROR);
+            logWithCallId("notifyDeviceSwitched() : RemoteException notifyDeviceSwitched()",
+                    ImsCallLogLevel.ERROR);
         }
     }
 
@@ -334,86 +335,166 @@ public class MtkImsCallSessionProxy implements AutoCloseable {
 
         Rlog.d(LOG_TAG, "notifyTransferFailed()");
         if (mMtkListener == null) {
-            logWithCallId("notifyDeviceSwitchFailed() : mMtkListener is null", ImsCallLogLevel.DEBUG);
+            logWithCallId("notifyDeviceSwitchFailed() : mMtkListener is null",
+                    ImsCallLogLevel.ERROR);
             return;
         }
         try {
             mMtkListener.callSessionDeviceSwitchFailed(mServiceImpl, reasonInfo);
         } catch (RemoteException e) {
-            logWithCallId("notifyDeviceSwitchFailed() : RemoteException notifyDeviceSwitchFailed()", ImsCallLogLevel.ERROR);
+            logWithCallId("notifyDeviceSwitchFailed() : RemoteException notifyDeviceSwitchFailed()",
+                    ImsCallLogLevel.ERROR);
         }
     }
 
     public void notifyTextCapabilityChanged(int localCapability, int remoteCapability,
             int localTextStatus, int realRemoteCapability) {
-        mOpExt.notifyTextCapabilityChanged(mMtkListener, mServiceImpl,
-                localCapability, remoteCapability,
-                localTextStatus, realRemoteCapability);
+        if (mMtkListener == null) {
+            Rlog.d(LOG_TAG, "notifyTextCapabilityChanged() listener is null");
+            return;
+        }
+        try {
+            mMtkListener.callSessionTextCapabilityChanged(mServiceImpl,
+                    localCapability, remoteCapability,
+                    localTextStatus, realRemoteCapability);
+        } catch (RemoteException e) {
+            Rlog.e(LOG_TAG, "RemoteException callSessionTextCapabilityChanged()");
+        }
     }
 
     public void notifyRttECCRedialEvent() {
-        mOpExt.notifyRttECCRedialEvent(mMtkListener, mServiceImpl);
+        if (mMtkListener == null) {
+            Rlog.d(LOG_TAG, "notifyRttECCRedialEvent() listener is null");
+            return;
+        }
+        try {
+            mMtkListener.callSessionRttEventReceived(mServiceImpl, 137);
+        } catch (RemoteException e) {
+            Rlog.e(LOG_TAG, "RemoteException callSessionRttEventReceived()");
+        }
     }
 
     public void resume() {
+        if (mAospImsCallSessionProxy == null) {
+            logWithCallId("resume() : mAospImsCallSessionProxy is null", ImsCallLogLevel.ERROR);
+            return;
+        }
+
         mAospImsCallSessionProxy.resume(null);
     }
 
     public void callTerminated() {
+        if (mAospImsCallSessionProxy == null) {
+            logWithCallId("callTerminated() : mAospImsCallSessionProxy is null",
+                    ImsCallLogLevel.ERROR);
+            return;
+        }
+
         mAospImsCallSessionProxy.callTerminated();
+    }
+
+    public void setImsCallMode(int mode) {
+        mAospImsCallSessionProxy.setImsCallMode(mode);
+    }
+
+    public void removeLastParticipant() {
+        mAospImsCallSessionProxy.removeLastParticipant();
+    }
+
+    public String getHeaderCallId() {
+        return mAospImsCallSessionProxy.getHeaderCallId();
     }
 
     void notifyCallSessionMergeStarted(IMtkImsCallSession mtkConfSession,
                                        ImsCallProfile imsCallProfile) {
         if (mMtkListener == null) {
-            logWithCallId("notifyCallSessionMergeStarted() : mMtkListener is null", ImsCallLogLevel.DEBUG);
+            logWithCallId("notifyCallSessionMergeStarted() : mMtkListener is null",
+                    ImsCallLogLevel.ERROR);
             return;
         }
         try {
             mMtkListener.callSessionMergeStarted(mServiceImpl, mtkConfSession, imsCallProfile);
         } catch (RemoteException e) {
-            logWithCallId("notifyCallSessionMergeStarted() : RemoteException when MTK session merged started", ImsCallLogLevel.ERROR);
+            logWithCallId("notifyCallSessionMergeStarted() : RemoteException when MTK session merged started",
+                    ImsCallLogLevel.ERROR);
         }
     }
 
     void notifyCallSessionMergeComplete(IMtkImsCallSession mtkConfSession) {
         if (mMtkListener == null) {
-            logWithCallId("notifyCallSessionMergeComplete() : mMtkListener is null", ImsCallLogLevel.DEBUG);
+            logWithCallId("notifyCallSessionMergeComplete() : mMtkListener is null",
+                    ImsCallLogLevel.ERROR);
             return;
         }
         try {
             mMtkListener.callSessionMergeComplete(mtkConfSession);
         } catch (RemoteException e) {
-            logWithCallId("notifyCallSessionMergeComplete() : RemoteException when MTK session merged started", ImsCallLogLevel.ERROR);
+            logWithCallId("notifyCallSessionMergeComplete() : RemoteException when MTK session merged started",
+                    ImsCallLogLevel.ERROR);
         }
     }
 
-    void notifyRedialEcc() {
+    void notifyRedialEcc(boolean isNeedUserConfirm) {
         if (mMtkListener == null) {
-            Rlog.d(LOG_TAG, "notifyRedialEcc() : mMtkListener is null");
+            logWithCallId("notifyRedialEcc() : mMtkListener is null", ImsCallLogLevel.ERROR);
             return;
         }
         try {
-            mMtkListener.callSessionRedialEcc(mServiceImpl);
+            mMtkListener.callSessionRedialEcc(mServiceImpl, isNeedUserConfirm);
         } catch (RemoteException e) {
-            Rlog.e(LOG_TAG, "notifyTransferred() : RemoteException callSessionTransferred()");
+            logWithCallId("notifyRedialEcc() : RemoteException callSessionRedialEcc()",
+                    ImsCallLogLevel.ERROR);
+        }
+    }
+
+    public void notifyCallSessionRinging(ImsCallProfile imsCallProfile) {
+        if (mMtkListener == null) {
+            logWithCallId("notifyCallSessionRinging() : mMtkListener is null", ImsCallLogLevel.DEBUG);
+            return;
+        }
+        try {
+            mMtkListener.callSessionRinging(mServiceImpl, imsCallProfile);
+        } catch (RemoteException e) {
+            logWithCallId("notifyCallSessionRinging() : RemoteException notifyCallSessionRinging()", ImsCallLogLevel.ERROR);
+        }
+    }
+
+    public void notifyCallSessionCalling() {
+        if (mMtkListener == null) {
+            logWithCallId("notifyCallSessionCalling() : mMtkListener is null", ImsCallLogLevel.DEBUG);
+            return;
+        }
+        try {
+            mMtkListener.callSessionCalling(mServiceImpl);
+        } catch (RemoteException e) {
+            logWithCallId("notifyCallSessionCalling() : RemoteException notifyCallSessionCalling()", ImsCallLogLevel.ERROR);
+        }
+    }
+
+    public void notifyCallSessionBusy() {
+        if (mMtkListener == null) {
+            logWithCallId("notifyCallSessionBusy() : mMtkListener is null", ImsCallLogLevel.DEBUG);
+            return;
+        }
+        try {
+            mMtkListener.callSessionBusy(mServiceImpl);
+        } catch (RemoteException e) {
+            logWithCallId("notifyCallSessionBusy() : RemoteException notifyCallSessionBusy()", ImsCallLogLevel.ERROR);
         }
     }
 
     ImsCallSessionProxy.ConferenceEventListener getConfEvtListener() {
         if (mAospImsCallSessionProxy == null) {
-            logWithCallId("ConferenceEventListener() : mCallSessionImpl is null", ImsCallLogLevel.DEBUG);
+            logWithCallId("ConferenceEventListener() : mAospImsCallSessionProxy is null",
+                    ImsCallLogLevel.ERROR);
             return null;
         }
         return mAospImsCallSessionProxy.getConfEvtListener();
     }
 
-    void notifyRttSpeechEvent(int speech) {
-        mOpExt.notifyRttSpeechEvent(mMtkListener, mServiceImpl, speech);
-    }
-
     void terminate(int reason) {
         if (mAospImsCallSessionProxy == null) {
+            logWithCallId("terminate() : mAospImsCallSessionProxy is null", ImsCallLogLevel.ERROR);
             return;
         }
         mAospImsCallSessionProxy.terminate(reason);

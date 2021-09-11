@@ -36,6 +36,12 @@
 package com.mediatek.ims.internal;
 
 import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.ConnectivityManager.NetworkCallback;
+import android.net.LinkProperties;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
 import android.os.PatternMatcher;
 import android.os.SystemProperties;
 import android.telecom.VideoProfile.CameraCapabilities;
@@ -96,12 +102,15 @@ import com.mediatek.ims.internal.ImsVTUsageManager.ImsVTUsage;
 // for External component
 import com.mediatek.ims.plugin.ExtensionFactory;
 import com.mediatek.ims.plugin.ExtensionPluginFactory;
+import com.mediatek.ims.plugin.OemPluginFactory;
+import com.mediatek.ims.plugin.ImsCallOemPlugin;
 import com.mediatek.ims.plugin.impl.ImsSelfActivatorBase;
 import com.mediatek.ims.plugin.impl.ImsCallPluginBase;
 import com.mediatek.ims.plugin.ImsSelfActivator;
 import com.mediatek.ims.plugin.ImsCallPlugin;
 
 import com.mediatek.ims.ImsCommonUtil;
+import com.mediatek.ims.ImsService;
 
 public class ImsVTProviderUtil {
 
@@ -152,6 +161,10 @@ public class ImsVTProviderUtil {
     public static final int TAG_VILTE_WIFI              = 0xFF100000;
 
     public static final int VT_SIM_ID_ABSENT            = -1;
+
+    public static final int CALL_RAT_LTE                = 0;
+    public static final int CALL_RAT_WIFI               = 1;
+    public static final int CALL_RAT_NR                 = 2;
 
     // for ImsConfig
     private final static String EXTRA_PHONE_ID = "phone_id";
@@ -286,8 +299,8 @@ public class ImsVTProviderUtil {
         private ImsVTProviderUtil   mOwner;
         private Context             mContext;
 
-        public VTPhoneStateListener(Integer subId) {
-            super(subId);
+        public VTPhoneStateListener() {
+            super();
         }
 
         public void setOwner(ImsVTProviderUtil owner) {
@@ -369,6 +382,48 @@ public class ImsVTProviderUtil {
         }
     }
 
+    private class NetworkAvailableCallback extends NetworkCallback {
+        @Override
+        public void onAvailable(Network network) {
+            Log.d(TAG, "NetworkAvailableCallback.onAvailable: network=" + network);
+
+            if(network != null) {
+                LinkProperties linkProp = mConnectivityManager.getLinkProperties(network);
+
+                if (linkProp != null) {
+                    String ifName = linkProp.getInterfaceName();
+                    Log.d(TAG, "NetworkAvailableCallback.onAvailable: (network_id, if_name) = ("
+                            + network.netId + ", " + ifName + ")");
+
+                    if (isVideoCallOnByPlatform()) {
+                        ImsVTProvider.nUpdateNetworkTable(true, network.netId, ifName);
+                    }
+
+                } else {
+                    Log.w(TAG, "NetworkAvailableCallback.onAvailable: linkProp = null");
+                }
+
+            } else {
+                Log.w(TAG, "NetworkAvailableCallback.onAvailable: network = null");
+            }
+        }
+
+        @Override
+        public void onLost(Network network) {
+           Log.d(TAG, "NetworkAvailableCallback.onLost: network=" + network);
+
+           if(network != null) {
+
+               if (isVideoCallOnByPlatform()) {
+                   ImsVTProvider.nUpdateNetworkTable(false, network.netId, null);
+               }
+
+           } else {
+               Log.w(TAG, "NetworkAvailableCallback.onLost: network = null");
+           }
+        }
+    }
+
     public class ImsVTMessagePacker {
 
         public String packFromVdoProfile(VideoProfile videoProfile) {
@@ -426,11 +481,10 @@ public class ImsVTProviderUtil {
     private ImsVTMessagePacker                      mPacker = new ImsVTMessagePacker();
     private FeatureValueReceiver                    mFeatureValueReceiver;
     private SimStateReceiver                        mSimStateReceiver;
+    private NetworkAvailableCallback                mNetworkAvailableCallback;
 
     private Map<String, Object>                     mProviderById = new ConcurrentHashMap<>();
-    private Map<String, Object>                     mLTEDataUsageById = new HashMap<>();
-    private Map<String, Object>                     mWiFiDataUsageById = new HashMap<>();
-    private Map<String, Object>                     mPhoneListenerByPhoneId = new HashMap<>();
+    private Map<String, Object>                     mDataUsageById = new HashMap<>();
 
     private int[]                                   mSimCardState = new int[SIM_NUM];
     private int[]                                   mSimAppState = new int[SIM_NUM];
@@ -442,6 +496,7 @@ public class ImsVTProviderUtil {
     private Handler                                 mProviderHandler;
 
     private TelephonyManager                        mTelephonyManager;
+    private ConnectivityManager                     mConnectivityManager;
 
     private SubscriptionManager                     mSubscriptionManager;
     private Map<Integer, PhoneStateListener>        mPhoneServicesStateListeners = new ConcurrentHashMap<>();
@@ -557,6 +612,7 @@ public class ImsVTProviderUtil {
         mSimStateReceiver = new SimStateReceiver();
         mSimStateReceiver.setOwner(this);
 
+        mNetworkAvailableCallback = new NetworkAvailableCallback();
     }
 
     public static ImsVTProviderUtil getInstance() {
@@ -570,7 +626,13 @@ public class ImsVTProviderUtil {
 
     public ImsCallPluginBase getImsExtCallUtil() {
 
-        ExtensionPluginFactory facotry = ExtensionFactory.makeExtensionPluginFactory();
+        ExtensionPluginFactory facotry = ExtensionFactory.makeExtensionPluginFactory(mContext);
+        return facotry.makeImsCallPlugin(mContext);
+    }
+
+    public ImsCallOemPlugin getImsOemCallUtil() {
+
+        OemPluginFactory facotry = ExtensionFactory.makeOemPluginFactory(mContext);
         return facotry.makeImsCallPlugin(mContext);
     }
 
@@ -599,7 +661,7 @@ public class ImsVTProviderUtil {
                     // Create listeners for new subscriptions.
                     Log.d(TAG, "[updateServiceStateListeners] create ServicesStateListener for " + subId);
 
-                    VTPhoneStateListener listener = new VTPhoneStateListener(Integer.valueOf(subId));
+                    VTPhoneStateListener listener = new VTPhoneStateListener();
 
                     mTelephonyManager.listen(listener, PhoneStateListener.LISTEN_SERVICE_STATE);
                     mPhoneServicesStateListeners.put(Integer.valueOf(subId), listener);
@@ -629,36 +691,19 @@ public class ImsVTProviderUtil {
         return mPacker.unPackToVdoProfile(flattened);
     }
 
-    public void usageSet(int Id, long usage, int mode) {
-        Log.d(TAG, "[usageSet] id = " + Id + ", usage = " + usage + ", mode = " + mode);
-
-        if (TAG_VILTE_MOBILE == mode) {
-            mLTEDataUsageById.put("" + Id, new Long(usage));
-        } else if (TAG_VILTE_WIFI == mode) {
-            mWiFiDataUsageById.put("" + Id, new Long(usage));
-        }
-
-        return;
+    public void usageSet(int Id, ImsVTUsage usage) {
+        Log.d(TAG, "[usageSet][id =" + Id + "]" + usage.toString());
+        mDataUsageById.put("" + Id, new ImsVTUsage("Record", usage));
     }
 
-    public long usageGet(int Id, int mode) {
+    public ImsVTUsage usageGet(int Id) {
+        ImsVTUsage usage = (ImsVTUsage) mDataUsageById.get("" + Id);
 
-        Long usage;
-
-        if (TAG_VILTE_MOBILE == mode) {
-            usage = (Long) mLTEDataUsageById.get("" + Id);
-        } else if (TAG_VILTE_WIFI == mode) {
-            usage = (Long) mWiFiDataUsageById.get("" + Id);
+        if (usage == null) {
+            return new ImsVTUsage("Dummy");
         } else {
-            return 0;
-        }
-
-        if (usage != null) {
-            Log.d(TAG, "[usageGet] usage = " + usage.longValue() + ", Id = " + Id + ", mode = " + mode);
-            return usage.longValue();
-        } else {
-            Log.d(TAG, "[usageGet] usage = 0" + ", Id = " + Id + ", mode = " + mode);
-            return 0;
+            Log.d(TAG, "[usageGet][id =" + Id + "]" + usage.toString());
+            return usage;
         }
     }
 
@@ -778,8 +823,21 @@ public class ImsVTProviderUtil {
         }
     }
 
+    public void releaseVTSourceAll(){
+        if (mProviderById.size() != 0) {
+            for (Object p : mProviderById.values()) {
+                Log.d(TAG, "releaseVTSourceAll, id = " + ((ImsVTProvider) p).getId());
+                ((ImsVTProvider) p).mSource.release();
+            }
+        }
+    }
+
     public boolean isVideoCallOn(int phoneId) {
         return mFeatureValueReceiver.getInitViLTEValue(phoneId);
+    }
+
+    public boolean isViWifiOn(int phoneId) {
+        return mFeatureValueReceiver.getInitViWifiValue(phoneId);
     }
 
     public static boolean isVideoCallOnByPlatform() {
@@ -883,10 +941,27 @@ public class ImsVTProviderUtil {
         mSubscriptionManager = SubscriptionManager.from(mContext);
         mSubscriptionManager.addOnSubscriptionsChangedListener(mSubscriptionsChangedlistener);
 
+        registerNetworkRequestWithCallback(NetworkCapabilities.NET_CAPABILITY_IMS);
+        registerNetworkRequestWithCallback(NetworkCapabilities.NET_CAPABILITY_EIMS);
+
         if (isVideoCallOnByPlatform()) {
             Log.d(TAG, "setContextAndInitRefVTPInternal(), ViLTE on, do natvie init");
             ImsVTProvider.nInitRefVTP();
         }
+    }
+
+    public void registerNetworkRequestWithCallback(int cap) {
+        NetworkRequest.Builder builder = new NetworkRequest.Builder();
+        builder.addCapability(cap);
+        NetworkRequest networkRequest = builder.build();
+
+        Log.d(TAG, "registerNetworkRequestwithCallback(), networkRequest:" + networkRequest);
+
+        if (mConnectivityManager == null) {
+            mConnectivityManager =
+                (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+        }
+        mConnectivityManager.registerNetworkCallback(networkRequest, mNetworkAvailableCallback);
     }
 
     public void bindInternal(ImsVTProvider p, int CallId, int PhoneId) {
@@ -910,12 +985,7 @@ public class ImsVTProviderUtil {
         int id = CallId;
         int ImsCount = 1;
 
-        try {
-            ImsCount = getImsExtCallUtil().getModemMultiImsCount();
-        } catch (ImsException e) {
-            Log.e(TAG, "getModemMultiImsCount with exception:" + e);
-        }
-
+        ImsCount = ImsService.getInstance(mContext).getModemMultiImsCount();
         if (ImsCount > 1) {
             id = (PhoneId << 16) | CallId;
         }
@@ -944,10 +1014,7 @@ public class ImsVTProviderUtil {
 
             p.setId(id);
             p.setSimId(PhoneId);
-            ImsVTUsage initUsage = new ImsVTUsage();
-            initUsage.setLteUsage(usageGet(id, TAG_VILTE_MOBILE));
-            initUsage.setWifiUsage(usageGet(id, TAG_VILTE_WIFI));
-
+            ImsVTUsage initUsage = new ImsVTUsage("Init", usageGet(id));
             p.mUsager.setInitUsage(initUsage);
 
             recordAdd(id, p);

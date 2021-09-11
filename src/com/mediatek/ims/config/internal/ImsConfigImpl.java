@@ -11,6 +11,7 @@ import android.text.TextUtils;
 //import android.telephony.ims.stub.ImsConfigImplBase;
 import android.telephony.ims.compat.stub.ImsConfigImplBase;
 import android.telephony.ims.ImsReasonInfo;
+import android.telephony.ims.stub.ImsRegistrationImplBase;
 import android.util.Log;
 
 import com.android.ims.ImsConfig;
@@ -22,6 +23,10 @@ import com.android.internal.telephony.IccCardConstants;
 
 import com.mediatek.ims.ImsCommonUtil;
 import com.mediatek.ims.ril.ImsCommandsInterface;
+
+import com.mediatek.ims.plugin.ExtensionFactory;
+import com.mediatek.ims.plugin.OemPluginFactory;
+import com.mediatek.ims.plugin.ImsCallOemPlugin;
 
 import java.util.HashMap;
 
@@ -44,6 +49,7 @@ public class ImsConfigImpl extends ImsConfigImplBase {
     private int mPhoneId;
     private ImsCommandsInterface mRilAdapter;
     private ImsConfigAdapter mConfigAdapter = null;
+    private ImsCallOemPlugin mImsCallOemPlugin = null;
     private String mLogTag;
 
     /**
@@ -220,6 +226,14 @@ public class ImsConfigImpl extends ImsConfigImplBase {
                           ") on phone " + mPhoneId + " from pid " + Binder.getCallingPid() +
                           ", uid " + Binder.getCallingUid() + ", listener " + listener);
                 }
+
+                if ((feature == ImsConfig.FeatureConstants.FEATURE_TYPE_UT_OVER_LTE) ||
+                    (feature == ImsConfig.FeatureConstants.FEATURE_TYPE_UT_OVER_WIFI)) {
+                    Rlog.i(mLogTag, "setFeatureValue is not support UT currently.");
+                    throw new ImsException("setFeatureValue is not support UT currently.",
+                        ImsReasonInfo.CODE_LOCAL_ILLEGAL_STATE);
+                }
+
                 if(ImsCommonUtil.supportMims() == false) {
                     if (ImsCommonUtil.getMainCapabilityPhoneId() != mPhoneId) {
                         Rlog.i(mLogTag, "setFeatureValue is not allow on non main capability phoneId:" +
@@ -235,7 +249,8 @@ public class ImsConfigImpl extends ImsConfigImplBase {
                     if ("1".equals(SystemProperties.get("persist.vendor.mtk_dynamic_ims_switch"))) {
                         int resCap = mConfigAdapter.getImsResCapability(feature);
 
-                        if (resCap != ImsConfig.FeatureValueConstants.ON) {
+                        if (resCap != ImsConfig.FeatureValueConstants.ON &&
+                                SystemProperties.getInt(PROPERTY_IMSCONFIG_FORCE_NOTIFY, 0) == 0) {
                             Rlog.i(mLogTag, "setFeatureValue, modify the value in ImsConfig.");
                             value = ImsConfig.FeatureValueConstants.OFF;
                         }
@@ -243,6 +258,20 @@ public class ImsConfigImpl extends ImsConfigImplBase {
                 }
 
                 mConfigAdapter.setFeatureValue(feature, network, value, ImsConfigAdapter.ISLAST_NULL);
+
+                if (mImsCallOemPlugin == null) {
+                    mImsCallOemPlugin = ExtensionFactory.makeOemPluginFactory(mContext)
+                            .makeImsCallPlugin(mContext);
+                }
+
+                if (mImsCallOemPlugin.isUpdateViwifiFeatureValueAsViLTE()
+                    && ImsConfig.FeatureConstants.FEATURE_TYPE_VIDEO_OVER_LTE == feature) {
+                    mConfigAdapter.setFeatureValue(
+                            ImsConfig.FeatureConstants.FEATURE_TYPE_VIDEO_OVER_WIFI,
+                            ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN,
+                            value,
+                            ImsConfigAdapter.ISLAST_NULL);
+                }
 
                 // 92 logic
                 if (!ImsCommonUtil.supportMdAutoSetupIms()) {
@@ -254,8 +283,14 @@ public class ImsConfigImpl extends ImsConfigImplBase {
                             if (value != oldViLTEValue) {
                                 if (value == ImsConfig.FeatureValueConstants.ON) {
                                     mRilAdapter.turnOnVilte(null);
+                                    if (mImsCallOemPlugin.isUpdateViwifiFeatureValueAsViLTE()) {
+                                        mRilAdapter.turnOnViwifi(null);
+                                    }
                                 } else {
                                     mRilAdapter.turnOffVilte(null);
+                                    if (mImsCallOemPlugin.isUpdateViwifiFeatureValueAsViLTE()) {
+                                        mRilAdapter.turnOffViwifi(null);
+                                    }
                                 }
                             }
                             break;

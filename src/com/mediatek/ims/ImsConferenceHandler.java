@@ -40,23 +40,21 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.os.PersistableBundle;
-import android.telephony.CarrierConfigManager;
+import android.os.SystemProperties;
 import android.telephony.ims.ImsConferenceState;
 import android.telephony.PhoneNumberUtils;
 import android.telephony.Rlog;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
-import android.os.Build;
-import android.os.SystemProperties;
+import android.support.v4.content.LocalBroadcastManager;
 
-import com.mediatek.ims.common.ImsCarrierConfigConstants;
 import com.mediatek.ims.common.SubscriptionManagerHelper;
-
 import com.mediatek.ims.internal.ImsXuiManager;
 import com.mediatek.ims.internal.CallControlDispatcher;
 import com.mediatek.ims.internal.ConferenceCallMessageHandler;
@@ -116,20 +114,25 @@ public class ImsConferenceHandler extends DefaultConferenceHandler {
     private int mConfState = CONFERENCE_STATE_CLOSED;
     private boolean mIsFirstCep = true;
     private String mHostAddr = null;
+    private String mCachedConferenceData = null;
 
     private boolean mIsCepNotified = false;
-    private boolean mRestoreParticipantsAddr = false;
+    private boolean mRestoreParticipantsAddr = true;
     private boolean mRemoveParticipantsByUserEntity = false;
+    private boolean mHaveUpdateConferenceWithMember = false;
+    private boolean mSupportConferenceManagement = true;
 
     private static final int CONFERENCE_STATE_CLOSED = 0;
     private static final int CONFERENCE_STATE_ACTIVE = 1;
 
     private static final int EVENT_TRY_UPDATE_WITH_LOCAL_CACHE = 0;
     private static final int EVENT_CLOSE_CONFERENCE = 1;
+    private static final int EVENT_HANDLE_CACHED_CONFERENCE_DATA = 2;
     // Wait CEP for 5 secs
     private static final int CEP_TIMEOUT = 5000;
     private static final String ANONYMOUS_URI = "sip:anonymous@anonymous.invalid";
     private LinkedHashMap mConfParticipantsAddr = new LinkedHashMap<String, String>();
+    private LinkedHashMap mFirstMergeParticipants = new LinkedHashMap<String, String>();
 
     private Handler mHandler = new Handler() {
         @Override
@@ -145,6 +148,12 @@ public class ImsConferenceHandler extends DefaultConferenceHandler {
                     break;
                 case EVENT_CLOSE_CONFERENCE:
                     closeConferenceInternal(msg.arg1);
+                    break;
+                case EVENT_HANDLE_CACHED_CONFERENCE_DATA:
+                    if (mCachedConferenceData != null) {
+                        handleImsConfCallMessage(mCachedConferenceData.length(), mCachedConferenceData);
+                        mCachedConferenceData = null;
+                    }
                     break;
                 default:
                     break;
@@ -178,15 +187,15 @@ public class ImsConferenceHandler extends DefaultConferenceHandler {
         mContext = ctx;
         final IntentFilter filter = new IntentFilter();
         filter.addAction(ImsConstants.ACTION_IMS_CONFERENCE_CALL_INDICATION);
-        mContext.registerReceiver(mBroadcastReceiver, filter);
+        LocalBroadcastManager.getInstance(mContext).registerReceiver(mBroadcastReceiver, filter);
         mConfCallId = Integer.parseInt(callId);
         mPhoneId = phoneId;
         mIsFirstCep = true;
         mConfState = CONFERENCE_STATE_ACTIVE;
-        mRestoreParticipantsAddr = getBooleanFromCarrierConfig(
-                ImsCarrierConfigConstants.MTK_KEY_RESTORE_ADDRESS_FOR_IMS_CONFERENCE_PARTICIPANTS);
-        mRemoveParticipantsByUserEntity = getBooleanFromCarrierConfig(
-                ImsCarrierConfigConstants.MTK_KEY_OPERATE_IMS_CONFERENCE_PARTICIPANTS_BY_USER_ENTITY);
+        mRemoveParticipantsByUserEntity =
+                OperatorUtils.isMatched(OperatorUtils.OPID.OP132_Peru, mPhoneId);
+        mSupportConferenceManagement =
+                OperatorUtils.isMatched(OperatorUtils.OPID.OP151, mPhoneId);
     }
 
     public void closeConference(String callId) {
@@ -203,7 +212,7 @@ public class ImsConferenceHandler extends DefaultConferenceHandler {
         mConfState = CONFERENCE_STATE_CLOSED;
         mListener = null;
         if (mContext != null) {
-            mContext.unregisterReceiver(mBroadcastReceiver);
+            LocalBroadcastManager.getInstance(mContext).unregisterReceiver(mBroadcastReceiver);
             mContext = null;
         }
         // clean the member variable
@@ -216,10 +225,13 @@ public class ImsConferenceHandler extends DefaultConferenceHandler {
         mHostAddr = null;
         mConfParticipants.clear();
         mConfParticipantsAddr.clear();
+        mFirstMergeParticipants.clear();
         mUnknowParticipants.clear();
         mIsCepNotified = false;
         mHandler.removeMessages(EVENT_TRY_UPDATE_WITH_LOCAL_CACHE);
         mLatestRemovedParticipant = null;
+        mHaveUpdateConferenceWithMember = false;
+        mCachedConferenceData = null;
     }
 
     public boolean isConferenceActive() {
@@ -230,10 +242,20 @@ public class ImsConferenceHandler extends DefaultConferenceHandler {
         return number.replace("*31#","").replace("#31#","");
     }
 
-    public void firstMerge(String num_1, String num_2) {
+    public void firstMerge(String callId_1, String callId_2, String num_1, String num_2) {
         mLocalParticipants.clear();
-        mLocalParticipants.add(normalizeNumberFromCLIR(num_1));
-        mLocalParticipants.add(normalizeNumberFromCLIR(num_2));
+        mFirstMergeParticipants.clear();
+        mFirstMergeParticipants.put(callId_1, normalizeNumberFromCLIR(num_1));
+        mFirstMergeParticipants.put(callId_2, normalizeNumberFromCLIR(num_2));
+    }
+
+    public void addFirstMergeParticipant(String callId) {
+        String num = (String) mFirstMergeParticipants.get(callId);
+        if (num != null) {
+            Rlog.d(LOG_TAG, "addFirstMergeParticipant() callId: " + callId
+                    + ", num: " + sensitiveEncode(num));
+            mLocalParticipants.add(num);
+        }
     }
 
     // For One-key conference used
@@ -257,7 +279,8 @@ public class ImsConferenceHandler extends DefaultConferenceHandler {
 
     public void modifyParticipantComplete() {
         boolean isFirstMerge = (mAddingParticipant == null && mRemovingParticipant == null);
-        if (mAddingParticipant != null && !mLocalParticipants.contains(mAddingParticipant)) {
+        if (mAddingParticipant != null &&
+            (!mLocalParticipants.contains(mAddingParticipant) || mAddingParticipant.isEmpty())) {
             mLocalParticipants.add(mAddingParticipant);
         }
         if (mRemovingParticipant != null) {
@@ -266,12 +289,17 @@ public class ImsConferenceHandler extends DefaultConferenceHandler {
         }
         mAddingParticipant = null;
         mRemovingParticipant = null;
-        Rlog.d(LOG_TAG, "modifyParticipantComplete: "+
-                sensitiveEncode(mLocalParticipants.toString()));
-        if (getBooleanFromCarrierConfig(
-                ImsCarrierConfigConstants.MTK_KEY_CONFERENCE_MANAGEMENT_SUPPORTED)) {
+        for (String addr : mLocalParticipants) {
+            Rlog.d(LOG_TAG, "modifyParticipantComplete: " + sensitiveEncode(addr));
+        }
+        if (mSupportConferenceManagement) {
             mHandler.sendEmptyMessageDelayed(EVENT_TRY_UPDATE_WITH_LOCAL_CACHE, CEP_TIMEOUT);
         }
+
+        if (mCachedConferenceData != null) {
+            mHandler.sendEmptyMessage(EVENT_HANDLE_CACHED_CONFERENCE_DATA);
+        }
+
         if (mIsCepNotified == true && isFirstMerge == true) {
             Rlog.d(LOG_TAG, "CEP is notify before merge complete, notify again");
             notifyConfStateUpdate();
@@ -282,15 +310,16 @@ public class ImsConferenceHandler extends DefaultConferenceHandler {
         mAddingParticipant = null;
         mRemovingParticipant = null;
         mLatestRemovedParticipant = null;
-        Rlog.d(LOG_TAG, "modifyParticipantFailed: "+
-                sensitiveEncode(mLocalParticipants.toString()));
+        for (String addr : mLocalParticipants) {
+            Rlog.d(LOG_TAG, "modifyParticipantFailed: " + sensitiveEncode(addr));
+        }
+        if (mCachedConferenceData != null) {
+            mHandler.sendEmptyMessage(EVENT_HANDLE_CACHED_CONFERENCE_DATA);
+        }
     }
 
-    public String getConfParticipantUri(String addr) {
-        if (addr == null) {
-            return ANONYMOUS_URI;
-        }
-        if (mRestoreParticipantsAddr && mRemoveParticipantsByUserEntity && addr.isEmpty()) {
+    public String getConfParticipantUri(String addr, boolean isRetry) {
+        if (mRestoreParticipantsAddr && (mRemoveParticipantsByUserEntity != isRetry)) {
             String confParticipantUri = (String) mConfParticipantsAddr.get(addr);
             if (confParticipantUri != null) {
                 Rlog.d(LOG_TAG, "removeParticipants confParticipantUri: "
@@ -301,6 +330,9 @@ public class ImsConferenceHandler extends DefaultConferenceHandler {
         }
         Bundle confInfo = (Bundle)mConfParticipants.get(addr);
         if (confInfo == null) {
+            if (addr == null || addr.isEmpty()) {
+                return ANONYMOUS_URI;
+            }
             return addr;
         }
         String participantUri = confInfo.getString(USER_ENTITY);
@@ -373,329 +405,6 @@ public class ImsConferenceHandler extends DefaultConferenceHandler {
     }
 
     private final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
-
-        private ConferenceCallMessageHandler parseXmlPackage(int len, String data) {
-            try {
-                //Read conference data and parse it
-                InputStream inStream =
-                    new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8));
-                SAXParserFactory factory = SAXParserFactory.newInstance();
-                SAXParser saxParse = factory.newSAXParser();
-                ConferenceCallMessageHandler xmlData = new ConferenceCallMessageHandler();
-                if (xmlData == null) {
-                    return null;
-                }
-                saxParse.parse(inStream, xmlData);
-                return xmlData;
-            } catch (Exception ex) {
-                Rlog.d(LOG_TAG, "Parsing exception: " + ex.toString());
-                updateConferenceStateWithLocalCache();
-                return null;
-            }
-        }
-
-        private Bundle packUserInfo(ConferenceCallMessageHandler.User user) {
-            String entity = user.getEntity();
-            String userAddr = getUserNameFromSipTelUriString(entity);
-            Bundle userInfo = new Bundle();
-            userInfo.putString(ImsConferenceState.USER, userAddr);
-            userInfo.putString(ImsConferenceState.DISPLAY_TEXT, user.getDisplayText());
-            userInfo.putString(ImsConferenceState.ENDPOINT, user.getEndPoint());
-            userInfo.putString(ImsConferenceState.STATUS, user.getStatus());
-            userInfo.putString(USER_ENTITY, entity);
-            return userInfo;
-        }
-
-        private void fullUpdateParticipants(List<ConferenceCallMessageHandler.User> users) {
-            Rlog.d(LOG_TAG, "reset all users as participants :" + users.size());
-            mUnknowParticipants.clear();
-            mConfParticipants.clear();
-            int counter = 0;
-            for (ConferenceCallMessageHandler.User user : users) {
-                String entity = user.getEntity();
-                String userAddr = getUserNameFromSipTelUriString(entity);
-                Bundle userInfo = packUserInfo(user);
-                Rlog.d(LOG_TAG, "handle user: " +  sensitiveEncode(entity) +
-                        " addr: " + sensitiveEncode(userAddr));
-                if (counter == 0) {
-                    if (getBooleanFromCarrierConfig(
-                        ImsCarrierConfigConstants.MTK_KEY_CONF_FIRST_PARTICIPANT_AS_HOST_SUPPORTED)) {
-                        if ((users.size() > mLocalParticipants.size()) && mHostAddr == null) {
-                            Rlog.d(LOG_TAG, "Handle 1st user as host for this case.");
-                            counter++;
-                            continue;
-                        }
-                    }
-                }
-                counter++;
-                if (userAddr == null || userAddr.trim().length() == 0) {
-                    mUnknowParticipants.add(userInfo);
-                    Rlog.d(LOG_TAG, "add unknow participants");
-                } else {
-                    mConfParticipants.put(userAddr, userInfo);
-                }
-            }
-        }
-
-        private void partialUpdateParticipants(List<ConferenceCallMessageHandler.User> users) {
-            Rlog.d(LOG_TAG, "partial update participants");
-            for (ConferenceCallMessageHandler.User user : users) {
-                String entity = user.getEntity();
-                String userAddr = getUserNameFromSipTelUriString(entity);
-                if (mRestoreParticipantsAddr) {
-                    userAddr = getPairedAddressFromCache(userAddr);
-                }
-                Bundle userInfo = packUserInfo(user);
-                Rlog.d(LOG_TAG, "handle user: " +  sensitiveEncode(entity) +
-                        " addr: " + sensitiveEncode(userAddr));
-
-                String status = user.getStatus();
-                // update participants
-                if(userAddr == null || userAddr.trim().length() == 0) {
-                    if (status.equals(ConferenceCallMessageHandler.STATUS_CONNECTED)) {
-                        mUnknowParticipants.add(userInfo);
-                        Rlog.d(LOG_TAG, "add unknow participants");
-                    } else if (status.equals(ConferenceCallMessageHandler.STATUS_DISCONNECTED)){
-                        // remove last unknow participants
-                        if (mUnknowParticipants.size() > 0) {
-                            mUnknowParticipants.remove(mUnknowParticipants.size() - 1);
-                            Rlog.d(LOG_TAG, "remove unknow participants");
-                        }
-                    }
-                } else {
-                    if (!status.equals(ConferenceCallMessageHandler.STATUS_DIALING_OUT)) {
-                        mConfParticipants.put(userAddr, userInfo);
-                    }
-                }
-            }
-        }
-
-        private boolean isEmptyConference() {
-            int userCount = mUnknowParticipants.size();
-
-            Iterator<Entry<String, Bundle>> iterator = mConfParticipants.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Entry<String, Bundle> entry = iterator.next();
-                String userHandle = entry.getKey();
-                Bundle confInfo = entry.getValue();
-                String status = confInfo.getString(ImsConferenceState.STATUS);
-                if (!status.equals(ConferenceCallMessageHandler.STATUS_DISCONNECTED)) {
-                    if (isSelfAddress(userHandle)) continue;
-                    ++userCount;
-                }
-            }
-
-            if (userCount == 0) {
-                return true;
-            }
-            return false;
-        }
-
-        /**
-        * To handle IMS conference call message
-        *
-        * @param len    The length of data
-        * @param data   Conference call message
-        */
-        private void handleImsConfCallMessage(int len, String data) {
-            if (mConfCallId == -1) {
-                Rlog.e(LOG_TAG, "ImsConference is closed");
-                return;
-            }
-
-            if ((data == null) || (data.equals(""))) {
-                Rlog.e(LOG_TAG, "Failed to handleImsConfCallMessage due to data is empty");
-                return;
-            }
-
-            Rlog.d(LOG_TAG, "handleVoLteConfCallMessage, data length = " + data.length());
-
-            ConferenceCallMessageHandler xmlData = parseXmlPackage(len, data);
-            if (xmlData == null) {
-                Rlog.e(LOG_TAG, "can't create xmlData object, update conf state with local cache");
-                updateConferenceStateWithLocalCache();
-                return;
-            }
-
-            // get host address from the optional xml element <host-info>
-            if (mHostAddr == null) {
-                mHostAddr = getUserNameFromSipTelUriString(xmlData.getHostInfo());
-            }
-
-            // get CEP state
-            int cepState = xmlData.getCEPState();
-            boolean isPartialCEP = cepState == ConferenceCallMessageHandler.CEP_STATE_PARTIAL;
-            Rlog.d(LOG_TAG, "isPartialCEP: " + isPartialCEP);
-
-            int version = xmlData.getVersion();
-            // only refer to the cep version for full cep, particial cep will not notify in order.
-            if (!isPartialCEP) {
-                if (mCepVersion > version && mCepVersion != -1) {
-                    Rlog.e(LOG_TAG, "version is less than local version" +
-                            mCepVersion + "," + version);
-                    return;
-                }
-                mCepVersion = version;
-            }
-
-            // get user data from xml and fill them into ImsConferenceState data structure.
-            List<ConferenceCallMessageHandler.User> users = xmlData.getUsers();
-
-            // get optional xml element: user count
-            int userCount = xmlData.getUserCount();
-
-            // no optional user count element,
-            // remove the participants who is not included in the xml.
-            switch (cepState) {
-                case ConferenceCallMessageHandler.CEP_STATE_FULL:
-                    fullUpdateParticipants(users);
-                    break;
-                case ConferenceCallMessageHandler.CEP_STATE_PARTIAL:
-                    partialUpdateParticipants(users);
-                    break;
-                default:
-                    if (userCount == -1 || userCount == users.size()) {
-                        fullUpdateParticipants(users);
-                    } else {
-                        partialUpdateParticipants(users);
-                    }
-            }
-
-            // Terminate the empty conference for specific operator. If it is first cep, never
-            // auto termiate cause that might be an empty one, such as one key conference.
-            if (isEmptyConference() && shouldAutoTerminateConf() && !mIsFirstCep) {
-                Rlog.d(LOG_TAG, "no participants, terminate the conference");
-                if (mListener != null) {
-                    mListener.onAutoTerminate();
-                }
-                return;
-            }
-
-            if (mRestoreParticipantsAddr) {
-                restoreParticipantsAddressByLocalCache();
-            }
-
-            notifyConfStateUpdate();
-            updateLocalCache();
-            mIsFirstCep = false;
-        }
-
-        private String getPairedAddressFromCache(String addr) {
-            for (String cache : mLocalParticipants) {
-                if (PhoneNumberUtils.compareLoosely(addr, cache)) {
-                    Rlog.d(LOG_TAG, "getPairedAddressFromCache: " + cache);
-                    mConfParticipantsAddr.put(cache, addr);
-                    return cache;
-                }
-            }
-            // Due to the latest removed participant will be removed from local cached,
-            // But it will be notified in the latest xml, so get the paired number individually.
-            if (mLatestRemovedParticipant != null &&
-                    PhoneNumberUtils.compareLoosely(addr, mLatestRemovedParticipant)) {
-                Rlog.d(LOG_TAG, "getPairedAddressFromLatestRemoved: " + mLatestRemovedParticipant);
-                return mLatestRemovedParticipant;
-            }
-            return addr;
-        }
-
-        private void updateLocalCache() {
-            Iterator<Entry<String, Bundle>> iterator = mConfParticipants.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Entry<String, Bundle> entry = iterator.next();
-                Bundle confInfo = entry.getValue();
-                String status = confInfo.getString(ImsConferenceState.STATUS);
-                String addr = confInfo.getString(ImsConferenceState.USER);
-                if (status.equals(ConferenceCallMessageHandler.STATUS_DISCONNECTED)) {
-                    mLocalParticipants.remove(addr);
-                }
-            }
-        }
-
-        private void restoreParticipantsAddressByLocalCache() {
-            ArrayList<String> restoreCandidate = new ArrayList<String>(mLocalParticipants);
-            LinkedHashMap restoreList = new LinkedHashMap<String, Bundle>();
-
-            // to avoid concurrent access
-            LinkedHashMap participants = new LinkedHashMap<String, Bundle>(mConfParticipants);
-
-            // start restore, figure out the special user entity which can not be restored
-            Iterator<Entry<String, Bundle>> iterator = participants.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Entry<String, Bundle> entry = iterator.next();
-                String userHandle = entry.getKey();
-                Bundle confInfo = entry.getValue();
-                String restoreAddr = getPairedAddressFromCache(userHandle);
-                if (isSelfAddress(userHandle) == false
-                        && restoreCandidate.remove(restoreAddr) == false) {
-                    // Not self and match failed, keep addr and wait for restore.
-                    restoreList.put(userHandle, confInfo);
-                    Rlog.d(LOG_TAG, "wait for restore: " + sensitiveEncode(restoreAddr));
-                } else {
-                    confInfo.putString(ImsConferenceState.USER, restoreAddr);
-                    // update mConfParticipants
-                    mConfParticipants.put(userHandle, confInfo);
-                    Rlog.d(LOG_TAG, "restore participant: "
-                            + userHandle + " to: " + sensitiveEncode(restoreAddr));
-                }
-            }
-
-            // use the "not paired" local address to restored the special user entity
-            Iterator<Entry<String, Bundle>> resIterator = restoreList.entrySet().iterator();
-            ArrayList<String> restoreUnknowCandidates = new ArrayList<String>(restoreCandidate);
-            int restoreIndex = 0;
-            while (resIterator.hasNext()) {
-                if (restoreCandidate.size() <= restoreIndex) {
-                    break;
-                }
-                Entry<String, Bundle> entry = resIterator.next();
-                String userHandle = entry.getKey();
-                Bundle confInfo = entry.getValue();
-                String restoreAddr = restoreCandidate.get(restoreIndex);
-                // remove the used candidate
-                if (restoreUnknowCandidates.size() > 0) {
-                    restoreUnknowCandidates.remove(0);
-                }
-                String status = confInfo.getString(ImsConferenceState.STATUS);
-                if (status.equals(ConferenceCallMessageHandler.STATUS_DISCONNECTED)) {
-                    // do not restore the disconnected user, the disconnected user does not contain
-                    // in the cached
-                    continue;
-                }
-                mConfParticipantsAddr.put(restoreAddr, userHandle);
-                confInfo.putString(ImsConferenceState.USER, restoreAddr);
-                mConfParticipants.put(userHandle, confInfo);
-                Rlog.d(LOG_TAG, "restore participant: "
-                            + userHandle + " to: " + sensitiveEncode(restoreAddr));
-                ++restoreIndex;
-            }
-
-            // Restore the unknown participants
-            restoreUnknowParticipants(restoreUnknowCandidates);
-        }
-
-        private void restoreUnknowParticipants(ArrayList<String> restoreUnknowCandidates) {
-            List<Bundle> restoredUnknowParticipants = new ArrayList<Bundle>(mUnknowParticipants);
-            int restoreIndex = 0;
-            for (Bundle userInfo: mUnknowParticipants) {
-                if (restoreUnknowCandidates.size() <= restoreIndex) {
-                    restoredUnknowParticipants.add(userInfo);
-                    continue;
-                }
-                String restoreAddr = restoreUnknowCandidates.get(restoreIndex);
-                userInfo.putString(ImsConferenceState.USER, restoreAddr);
-                mConfParticipants.put(restoreAddr, userInfo);
-                // remove the unknow participants in index 0 (current unknow participant)
-                if (restoredUnknowParticipants.size() > 0) {
-                    restoredUnknowParticipants.remove(0);
-                }
-                Rlog.d(LOG_TAG,
-                        "restore unknow participants(" + restoreIndex + ") to: " + restoreAddr);
-                ++restoreIndex;
-            }
-
-            mUnknowParticipants = restoredUnknowParticipants;
-        }
-
         @Override
         public void onReceive(Context context, Intent intent) {
             final String action = intent.getAction();
@@ -703,15 +412,341 @@ public class ImsConferenceHandler extends DefaultConferenceHandler {
             /* Handle IMS conference call xml message */
             if (ImsConstants.ACTION_IMS_CONFERENCE_CALL_INDICATION.equals(action)) {
                 String data = intent.getStringExtra(ImsConstants.EXTRA_MESSAGE_CONTENT);
-                if ((data != null) && (!data.equals(""))) {
+                int callId = intent.getIntExtra(ImsConstants.EXTRA_CALL_ID, 0);
+                if (callId != 255 && (data != null) && (!data.equals(""))) {
                     mIsCepNotified = true;
-                    handleImsConfCallMessage(data.length(), data);
+                    if (mAddingParticipant != null || mRemovingParticipant != null) {
+                        mCachedConferenceData = data;
+                    } else {
+                        handleImsConfCallMessage(data.length(), data);
+                    }
                 }
             } else {
                 Rlog.e(LOG_TAG, "can't handle conference message since no call ID. Abnormal Case");
             }
         }
     };
+
+    private ConferenceCallMessageHandler parseXmlPackage(int len, String data) {
+        try {
+            // Read conference data and parse it
+            InputStream inStream =
+                new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8));
+            SAXParserFactory factory = SAXParserFactory.newInstance();
+            SAXParser saxParse = factory.newSAXParser();
+            ConferenceCallMessageHandler xmlData = new ConferenceCallMessageHandler();
+            if (xmlData == null) {
+                return null;
+            }
+            saxParse.parse(inStream, xmlData);
+            return xmlData;
+        } catch (Exception ex) {
+            Rlog.d(LOG_TAG, "Parsing exception: " + ex.toString());
+            updateConferenceStateWithLocalCache();
+            return null;
+        }
+    }
+
+    private Bundle packUserInfo(ConferenceCallMessageHandler.User user) {
+        String entity = user.getEntity();
+        String userAddr = getUserNameFromSipTelUriString(entity);
+        Bundle userInfo = new Bundle();
+        userInfo.putString(ImsConferenceState.USER, userAddr);
+        userInfo.putString(ImsConferenceState.DISPLAY_TEXT, user.getDisplayText());
+        userInfo.putString(ImsConferenceState.ENDPOINT, user.getEndPoint());
+        userInfo.putString(ImsConferenceState.STATUS, user.getStatus());
+        userInfo.putString(USER_ENTITY, entity);
+        return userInfo;
+    }
+
+    private void fullUpdateParticipants(List<ConferenceCallMessageHandler.User> users) {
+        Rlog.d(LOG_TAG, "reset all users as participants");
+        mUnknowParticipants.clear();
+        mConfParticipants.clear();
+
+        for (ConferenceCallMessageHandler.User user : users) {
+            String entity = user.getEntity();
+            String userAddr = getUserNameFromSipTelUriString(entity);
+            Bundle userInfo = packUserInfo(user);
+            Rlog.d(LOG_TAG, "handle user: " +  sensitiveEncode(entity) +
+                    " addr: " + sensitiveEncode(userAddr));
+
+            if (userAddr == null || userAddr.trim().length() == 0) {
+                mUnknowParticipants.add(userInfo);
+                Rlog.d(LOG_TAG, "add unknow participants");
+            } else {
+                mConfParticipants.put(userAddr, userInfo);
+            }
+        }
+    }
+
+    private void partialUpdateParticipants(List<ConferenceCallMessageHandler.User> users) {
+        Rlog.d(LOG_TAG, "partial update participants");
+        for (ConferenceCallMessageHandler.User user : users) {
+            String entity = user.getEntity();
+            String userAddr = getUserNameFromSipTelUriString(entity);
+            if (mRestoreParticipantsAddr) {
+                userAddr = getPairedAddressFromCache(userAddr);
+            }
+            Bundle userInfo = packUserInfo(user);
+            Rlog.d(LOG_TAG, "handle user: " +  sensitiveEncode(entity) +
+                    " addr: " + sensitiveEncode(userAddr));
+
+            String status = user.getStatus();
+            // update participants
+            if(userAddr == null || userAddr.trim().length() == 0) {
+                if (status.equals(ConferenceCallMessageHandler.STATUS_CONNECTED)) {
+                    mUnknowParticipants.add(userInfo);
+                    Rlog.d(LOG_TAG, "add unknow participants");
+                } else if (status.equals(ConferenceCallMessageHandler.STATUS_DISCONNECTED)){
+                    // remove last unknow participants
+                    if (mUnknowParticipants.size() > 0) {
+                        mUnknowParticipants.remove(mUnknowParticipants.size() - 1);
+                        Rlog.d(LOG_TAG, "remove unknow participants");
+                    }
+                }
+            } else {
+                if (!status.equals(ConferenceCallMessageHandler.STATUS_DIALING_OUT)) {
+                    mConfParticipants.put(userAddr, userInfo);
+                }
+            }
+        }
+    }
+
+    private boolean isEmptyConference() {
+        int userCount = mUnknowParticipants.size();
+
+        Iterator<Entry<String, Bundle>> iterator = mConfParticipants.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Entry<String, Bundle> entry = iterator.next();
+            String userHandle = entry.getKey();
+            Bundle confInfo = entry.getValue();
+            String status = confInfo.getString(ImsConferenceState.STATUS);
+            if (!status.equals(ConferenceCallMessageHandler.STATUS_DISCONNECTED)) {
+                if (isSelfAddress(userHandle)) continue;
+                ++userCount;
+            }
+        }
+
+        if (userCount == 0) {
+            return true;
+        }
+        if (!mHaveUpdateConferenceWithMember) {
+            Rlog.d(LOG_TAG, "Set mHaveUpdateConferenceWithMember = true");
+            mHaveUpdateConferenceWithMember = true;
+        }
+        return false;
+    }
+
+    /**
+    * To handle IMS conference call message
+    *
+    * @param len    The length of data
+    * @param data   Conference call message
+    */
+    private void handleImsConfCallMessage(int len, String data) {
+        if (mConfCallId == -1) {
+            Rlog.e(LOG_TAG, "ImsConference is closed");
+            return;
+        }
+
+        if ((data == null) || (data.equals(""))) {
+            Rlog.e(LOG_TAG, "Failed to handleImsConfCallMessage due to data is empty");
+            return;
+        }
+
+        Rlog.d(LOG_TAG, "handleVoLteConfCallMessage, data length = " + data.length());
+
+        ConferenceCallMessageHandler xmlData = parseXmlPackage(len, data);
+        if (xmlData == null) {
+            Rlog.e(LOG_TAG, "can't create xmlData object, update conf state with local cache");
+            updateConferenceStateWithLocalCache();
+            return;
+        }
+
+        // get host address from the optional xml element <host-info>
+        if (mHostAddr == null) {
+            mHostAddr = getUserNameFromSipTelUriString(xmlData.getHostInfo());
+        }
+
+        // get CEP state
+        int cepState = xmlData.getCEPState();
+        boolean isPartialCEP = cepState == ConferenceCallMessageHandler.CEP_STATE_PARTIAL;
+        Rlog.d(LOG_TAG, "isPartialCEP: " + isPartialCEP);
+
+        int version = xmlData.getVersion();
+        // only refer to the cep version for full cep, particial cep will not notify in order.
+        if (!isPartialCEP) {
+            if (mCepVersion > version && mCepVersion != -1) {
+                Rlog.e(LOG_TAG, "version is less than local version" +
+                        mCepVersion + "," + version);
+                return;
+            }
+            mCepVersion = version;
+        }
+
+        // get user data from xml and fill them into ImsConferenceState data structure.
+        List<ConferenceCallMessageHandler.User> users = xmlData.getUsers();
+
+        // get optional xml element: user count
+        int userCount = xmlData.getUserCount();
+
+        // no optional user count element,
+        // remove the participants who is not included in the xml.
+        switch (cepState) {
+            case ConferenceCallMessageHandler.CEP_STATE_FULL:
+                fullUpdateParticipants(users);
+                break;
+            case ConferenceCallMessageHandler.CEP_STATE_PARTIAL:
+                partialUpdateParticipants(users);
+                break;
+            default:
+                if (userCount == -1 || userCount == users.size()) {
+                    fullUpdateParticipants(users);
+                } else {
+                    partialUpdateParticipants(users);
+                    break;
+                }
+        }
+
+        // Terminate the empty conference for specific operator. If it is first cep, never
+        // auto termiate cause that might be an empty one, such as one key conference.
+        if (isEmptyConference() && shouldAutoTerminateConf() && !mIsFirstCep
+                && mHaveUpdateConferenceWithMember) {
+            Rlog.d(LOG_TAG, "no participants, terminate the conference");
+            if (mListener != null) {
+                mListener.onAutoTerminate();
+            }
+        }
+
+        if (mRestoreParticipantsAddr) {
+            restoreParticipantsAddressByLocalCache();
+        }
+
+        notifyConfStateUpdate();
+        updateLocalCache();
+        mIsFirstCep = false;
+    }
+
+    private String getPairedAddressFromCache(String addr) {
+        for (String cache : mLocalParticipants) {
+            if (PhoneNumberUtils.compareLoosely(addr, cache)) {
+                Rlog.d(LOG_TAG, "getPairedAddressFromCache: " + sensitiveEncode(cache));
+                mConfParticipantsAddr.put(cache, addr);
+                return cache;
+            }
+        }
+        // Due to the latest removed participant will be removed from local cached,
+        // But it will be notified in the latest xml, so get the paired number individually.
+        if (mLatestRemovedParticipant != null &&
+                PhoneNumberUtils.compareLoosely(addr, mLatestRemovedParticipant)) {
+            Rlog.d(LOG_TAG, "getPairedAddressFromLatestRemoved: "
+                    + sensitiveEncode(mLatestRemovedParticipant));
+            return mLatestRemovedParticipant;
+        }
+        return addr;
+    }
+
+    private void updateLocalCache() {
+        Iterator<Entry<String, Bundle>> iterator = mConfParticipants.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Entry<String, Bundle> entry = iterator.next();
+            Bundle confInfo = entry.getValue();
+            String status = confInfo.getString(ImsConferenceState.STATUS);
+            String addr = confInfo.getString(ImsConferenceState.USER);
+            if (status.equals(ConferenceCallMessageHandler.STATUS_DISCONNECTED)) {
+                mLocalParticipants.remove(addr);
+            }
+        }
+    }
+
+    private void restoreParticipantsAddressByLocalCache() {
+        ArrayList<String> restoreCandidate = new ArrayList<String>(mLocalParticipants);
+        LinkedHashMap restoreList = new LinkedHashMap<String, Bundle>();
+
+        // to avoid concurrent access
+        LinkedHashMap participants = new LinkedHashMap<String, Bundle>(mConfParticipants);
+
+        // start restore, figure out the special user entity which can not be restored
+        Iterator<Entry<String, Bundle>> iterator = participants.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Entry<String, Bundle> entry = iterator.next();
+            String userHandle = entry.getKey();
+            Bundle confInfo = entry.getValue();
+            String restoreAddr = getPairedAddressFromCache(userHandle);
+            if (isSelfAddress(userHandle) == false
+                    && restoreCandidate.remove(restoreAddr) == false) {
+                // Not self and match failed, keep addr and wait for restore.
+                restoreList.put(userHandle, confInfo);
+                Rlog.d(LOG_TAG, "wait for restore: " + sensitiveEncode(restoreAddr));
+            } else {
+                confInfo.putString(ImsConferenceState.USER, restoreAddr);
+                // update mConfParticipants
+                mConfParticipants.put(userHandle, confInfo);
+                Rlog.d(LOG_TAG, "restore participant: "
+                        + sensitiveEncode(userHandle) + " to: " + sensitiveEncode(restoreAddr));
+            }
+        }
+
+        // use the "not paired" local address to restored the special user entity
+        Iterator<Entry<String, Bundle>> resIterator = restoreList.entrySet().iterator();
+        ArrayList<String> restoreUnknowCandidates = new ArrayList<String>(restoreCandidate);
+        int restoreIndex = 0;
+        while (resIterator.hasNext()) {
+            if (restoreCandidate.size() <= restoreIndex) {
+                Rlog.d(LOG_TAG, "No candidate to restore, size: " + restoreCandidate.size()
+                        + ", index: " + restoreIndex);
+                break;
+            }
+            Entry<String, Bundle> entry = resIterator.next();
+            String userHandle = entry.getKey();
+            Bundle confInfo = entry.getValue();
+            String restoreAddr = restoreCandidate.get(restoreIndex);
+            // remove the used candidate
+            if (restoreUnknowCandidates.size() > 0) {
+                restoreUnknowCandidates.remove(0);
+            }
+            String status = confInfo.getString(ImsConferenceState.STATUS);
+            if (status.equals(ConferenceCallMessageHandler.STATUS_DISCONNECTED)) {
+                // do not restore the disconnected user, the disconnected user does not contain
+                // in the cached
+                continue;
+            }
+            mConfParticipantsAddr.put(restoreAddr, userHandle);
+            confInfo.putString(ImsConferenceState.USER, restoreAddr);
+            mConfParticipants.put(userHandle, confInfo);
+            Rlog.d(LOG_TAG, "restore participant: "
+                        + sensitiveEncode(userHandle) + " to: " + sensitiveEncode(restoreAddr));
+            ++restoreIndex;
+        }
+
+        // Restore the unknown participants
+        restoreUnknowParticipants(restoreUnknowCandidates);
+    }
+
+    private void restoreUnknowParticipants(ArrayList<String> restoreUnknowCandidates) {
+        List<Bundle> restoredUnknowParticipants = new ArrayList<Bundle>(mUnknowParticipants);
+        int restoreIndex = 0;
+        for (Bundle userInfo: mUnknowParticipants) {
+            if (restoreUnknowCandidates.size() <= restoreIndex) {
+                restoredUnknowParticipants.add(userInfo);
+                continue;
+            }
+            String restoreAddr = restoreUnknowCandidates.get(restoreIndex);
+            userInfo.putString(ImsConferenceState.USER, restoreAddr);
+            mConfParticipants.put(restoreAddr, userInfo);
+            // remove the unknow participants in index 0 (current unknow participant)
+            if (restoredUnknowParticipants.size() > 0) {
+                restoredUnknowParticipants.remove(0);
+            }
+            Rlog.d(LOG_TAG,
+                    "restore unknow participants(" + restoreIndex + ") to: "
+                    + sensitiveEncode(restoreAddr));
+            ++restoreIndex;
+        }
+
+        mUnknowParticipants = restoredUnknowParticipants;
+    }
 
     // Customize for specific operator and location.
     private boolean shouldAutoTerminateConf() {
@@ -744,8 +779,8 @@ public class ImsConferenceHandler extends DefaultConferenceHandler {
 
         // Gets pure user name part, i.e. everything before ';' or ','.
         // ex: '+8618407404132' or '1234'
-        int pIndex = userName.indexOf(';');    //WAIT
-        int wIndex = userName.indexOf(',');    //PAUSE
+        int pIndex = userName.indexOf(';');    // WAIT
+        int wIndex = userName.indexOf(',');    // PAUSE
 
         if (pIndex >= 0 && wIndex >= 0) {
             return userName.substring(0, Math.min(pIndex, wIndex));
@@ -759,11 +794,7 @@ public class ImsConferenceHandler extends DefaultConferenceHandler {
     }
 
     private String sensitiveEncode(String msg) {
-        if (!SENLOG || TELDBG) {
-            return msg;
-        } else {
-            return "[hidden]";
-        }
+        return ImsServiceCallTracker.sensitiveEncode(msg);
     }
 
     private boolean isSelfAddress(String addr) {
@@ -772,16 +803,5 @@ public class ImsConferenceHandler extends DefaultConferenceHandler {
             return true;
         }
         return ImsServiceCallTracker.getInstance(mPhoneId).isSelfAddress(addr);
-    }
-
-    private boolean getBooleanFromCarrierConfig(String key) {
-        int subId = SubscriptionManagerHelper.getSubIdUsingPhoneId(mPhoneId);
-        CarrierConfigManager configMgr = (CarrierConfigManager) mContext.
-                                                getSystemService(Context.CARRIER_CONFIG_SERVICE);
-        PersistableBundle carrierConfig =
-                configMgr.getConfigForSubId(subId);
-        boolean result = carrierConfig.getBoolean(key);
-        Rlog.d(LOG_TAG, "getBooleanFromCarrierConfig() key: " + key + " result: " + result);
-        return result;
     }
 }

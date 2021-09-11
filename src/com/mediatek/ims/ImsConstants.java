@@ -46,6 +46,9 @@ public class ImsConstants {
             "android.intent.action.ims.conference";
     public static final String ACTION_IMS_DIALOG_EVENT_PACKAGE =
             "com.mediatek.intent.action.ims.dialogEventPackage";
+    public static final String PERMISSION_READ_LTE_MESSAGE_WAITING_INDICATION =
+            "com.mediatek.permission.READ_LTE_MESSAGE_WAITING_INDICATION";
+    public static final String PACKAGE_NAME_PHONE = "com.android.phone";
 
     public static final String EXTRA_LTE_MWI_BODY = "lte_mwi_body";
     public static final String EXTRA_MESSAGE_CONTENT = "message.content";
@@ -59,4 +62,16 @@ public class ImsConstants {
             "com.mediatek.ims.action.self_identify_update";
     /// md multi ims
     public static final String PROPERTY_MD_MULTI_IMS_SUPPORT = "ro.vendor.md_mims_support";
+
+    public static final String PROPERTY_CAPABILITY_SWITCH = "persist.vendor.radio.simswitch";
+
+    public static String PROPERTY_TBCW_MODE = "persist.vendor.radio.terminal-based.cw";
+    public static String TBCW_DISABLED      = "disabled_tbcw";
+    public static String TBCW_OFF           = "enabled_tbcw_off";
+
+    //VOLTE IMS STATE
+    public static final int IMS_STATE_DISABLED = 0;
+    public static final int IMS_STATE_ENABLE = 1;
+    public static final int IMS_STATE_ENABLING = 2;
+    public static final int IMS_STATE_DISABLING = 3;
 }

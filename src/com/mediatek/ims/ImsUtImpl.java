@@ -49,6 +49,7 @@ import android.os.Message;
 import android.os.RemoteException;
 import android.os.SystemProperties;
 
+
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.stub.ImsUtImplBase;
@@ -59,6 +60,7 @@ import android.telephony.ims.ImsUtListener;
 
 import android.util.Log;
 
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -75,13 +77,16 @@ import com.android.internal.telephony.TelephonyIntents;
 import static com.android.internal.telephony.imsphone.ImsPhoneMmiCode.UT_BUNDLE_KEY_CLIR;
 import static com.android.internal.telephony.imsphone.ImsPhoneMmiCode.UT_BUNDLE_KEY_SSINFO;
 
-import com.mediatek.internal.telephony.MtkPhoneConstants;
 
-import com.mediatek.ims.common.ImsRILConstants;
+
+import com.mediatek.ims.ril.ImsRILConstants;
 
 import com.mediatek.ims.OperatorUtils;
 import com.mediatek.ims.OperatorUtils.OPID;
 import com.mediatek.ims.ril.ImsCommandsInterface;
+import com.mediatek.ims.plugin.ExtensionFactory;
+import com.mediatek.ims.plugin.ImsSSOemPlugin;
+import com.mediatek.ims.plugin.ImsSSExtPlugin;
 import com.mediatek.internal.telephony.MtkCallForwardInfo;
 
 import java.text.ParseException;
@@ -101,6 +106,9 @@ public class ImsUtImpl extends ImsUtImplBase {
     private static final boolean DBG = true;
     static private final boolean SDBG = SystemProperties.get("ro.build.type").equals("user")
             ? false : true;
+
+    private ImsSSOemPlugin mOemPluginBase;
+    private ImsSSExtPlugin mExtPluginBase;
 
     private static HashMap<Integer, ImsUtImpl> sImsUtImpls =
             new HashMap<Integer, ImsUtImpl>();
@@ -131,22 +139,17 @@ public class ImsUtImpl extends ImsUtImplBase {
     static final int IMS_UT_EVENT_SET_COLR = 1012;
     static final int IMS_UT_EVENT_SET_COLP = 1013;
 
-    static final int HTTP_ERROR_CODE_403 = 403;
-    static final int HTTP_ERROR_CODE_404 = 404;
-    static final int HTTP_ERROR_CODE_409 = 409;
-
     /* M: SS for 93
      * Define the mapping between CME error and
      * OEM ERROR CODE in CommandException
      *
-     * CME_409_CONFLICT                 CommandException.Error.OEM_ERROR_1
+     * CME_409_CONFLICT                 CommandException.Error.OEM_ERROR_25
      * CME_403_FORBIDDEN                CommandException.Error.OEM_ERROR_2
      * CME_NETWORK_TIMEOUT              CommandException.Error.OEM_ERROR_3
      * CME_404_NOT_FOUND                CommandException.Error.OEM_ERROR_4
      * CME_412_PRECONDITION_FAILED      CommandException.Error.OEM_ERROR_6
      */
-
-    private static final String ERROR_MSG_PROP_PREFIX = "vendor.gsm.radio.ss.errormsg.";
+    private static final int DEFAULT_INVALID_PHONE_ID = -1;
 
     private static final String SS_SERVICE_CLASS_PROP = "vendor.gsm.radio.ss.sc";
 
@@ -180,6 +183,9 @@ public class ImsUtImpl extends ImsUtImplBase {
         mImsService = imsService;
         mImsRILAdapter = mImsService.getImsRILAdapter(phoneId);
         mPhoneId = phoneId;
+
+        mOemPluginBase = ExtensionFactory.makeOemPluginFactory(mContext).makeImsSSOemPlugin(mContext);
+        mExtPluginBase = ExtensionFactory.makeExtensionPluginFactory(mContext).makeImsSSExtPlugin(mContext);
     }
 
     private class ResultHandler extends Handler {
@@ -215,7 +221,8 @@ public class ImsUtImpl extends ImsUtImplBase {
 
                             ImsReasonInfo reason;
                             if (ar.exception instanceof CommandException) {
-                                reason = commandExceptionToReason((CommandException)(ar.exception));
+                                reason = mOemPluginBase.commandExceptionToReason(
+                                        (CommandException)(ar.exception), mPhoneId);
                             } else {
                                 reason = new ImsReasonInfo(ImsReasonInfo.CODE_UT_NETWORK_ERROR, 0);
                             }
@@ -230,24 +237,15 @@ public class ImsUtImpl extends ImsUtImplBase {
                         if (null == ar.exception) {
 
                             CallForwardInfo[] cfInfo = (CallForwardInfo[]) ar.result;
-                            ImsCallForwardInfo[] imsCfInfo = null;
-                            if (cfInfo != null) {
-                                imsCfInfo = new ImsCallForwardInfo[cfInfo.length];
-                                for (int i = 0; i < cfInfo.length; i++) {
-                                    if (DBG) {
-                                        Log.d(TAG, "IMS_UT_EVENT_GET_CF: cfInfo[" + i + "] = "
-                                                + cfInfo[i]);
-                                    }
-                                    imsCfInfo[i] = getImsCallForwardInfo(cfInfo[i]);
-                                }
-                            }
+                            ImsCallForwardInfo[] imsCfInfo = mExtPluginBase.getImsCallForwardInfo(cfInfo);
 
                             mListener.onUtConfigurationCallForwardQueried(msg.arg1, imsCfInfo);
                         } else {
 
                             ImsReasonInfo reason;
                             if (ar.exception instanceof CommandException) {
-                                reason = commandExceptionToReason((CommandException)(ar.exception));
+                                reason = mOemPluginBase.commandExceptionToReason(
+                                        (CommandException)(ar.exception), mPhoneId);
                             } else {
                                 reason = new ImsReasonInfo(ImsReasonInfo.CODE_UT_NETWORK_ERROR, 0);
                             }
@@ -275,7 +273,8 @@ public class ImsUtImpl extends ImsUtImplBase {
 
                             ImsReasonInfo reason;
                             if (ar.exception instanceof CommandException) {
-                                reason = commandExceptionToReason((CommandException)(ar.exception));
+                                reason = mOemPluginBase.commandExceptionToReason(
+                                        (CommandException)(ar.exception), mPhoneId);
                             } else {
                                 reason = new ImsReasonInfo(ImsReasonInfo.CODE_UT_NETWORK_ERROR, 0);
                             }
@@ -298,7 +297,8 @@ public class ImsUtImpl extends ImsUtImplBase {
 
                             ImsReasonInfo reason;
                             if (ar.exception instanceof CommandException) {
-                                reason = commandExceptionToReason((CommandException)(ar.exception));
+                                reason = mOemPluginBase.commandExceptionToReason(
+                                        (CommandException)(ar.exception), mPhoneId);
                             } else {
                                 reason = new ImsReasonInfo(ImsReasonInfo.CODE_UT_NETWORK_ERROR, 0);
                             }
@@ -325,7 +325,8 @@ public class ImsUtImpl extends ImsUtImplBase {
 
                             ImsReasonInfo reason;
                             if (ar.exception instanceof CommandException) {
-                                reason = commandExceptionToReason((CommandException)(ar.exception));
+                                reason = mOemPluginBase.commandExceptionToReason(
+                                        (CommandException)(ar.exception), mPhoneId);
                             } else {
                                 reason = new ImsReasonInfo(ImsReasonInfo.CODE_UT_NETWORK_ERROR, 0);
                             }
@@ -349,11 +350,16 @@ public class ImsUtImpl extends ImsUtImplBase {
                                 if (cfInfo != null && cfInfo.length != 0) {
                                     imsCfInfo = new ImsCallForwardInfo[cfInfo.length];
                                     for (int i = 0; i < cfInfo.length; i++) {
+                                        imsCfInfo[i] = getImsCallForwardInfo(cfInfo[i]);
                                         if (DBG) {
                                             Log.d(TAG, "IMS_UT_EVENT_SET_CF: cfInfo[" + i + "] = "
-                                                    + cfInfo[i]);
+                                                    + ", Condition: " + imsCfInfo[i].getCondition()
+                                                    + ", Status: " + ((imsCfInfo[i].getStatus() == 0) ? "disabled" : "enabled")
+                                                    + ", ToA: " + imsCfInfo[i].getToA()
+                                                    + ", Service Class: " + imsCfInfo[i].getServiceClass()
+                                                    + ", Number=" + encryptString(imsCfInfo[i].getNumber())
+                                                    + ", Time (seconds): " + imsCfInfo[i].getTimeSeconds());
                                         }
-                                        imsCfInfo[i] = getImsCallForwardInfo(cfInfo[i]);
                                     }
                                 }
                                 //Use this function to append the cfinfo.
@@ -383,7 +389,8 @@ public class ImsUtImpl extends ImsUtImplBase {
 
                             ImsReasonInfo reason;
                             if (ar.exception instanceof CommandException) {
-                                reason = commandExceptionToReason((CommandException)(ar.exception));
+                                reason = mOemPluginBase.commandExceptionToReason(
+                                        (CommandException)(ar.exception), mPhoneId);
                             } else {
                                 reason = new ImsReasonInfo(ImsReasonInfo.CODE_UT_NETWORK_ERROR, 0);
                             }
@@ -419,8 +426,8 @@ public class ImsUtImpl extends ImsUtImplBase {
                         } else {
                             ImsReasonInfo reason;
                             if (ar.exception instanceof CommandException) {
-                                reason = commandExceptionToReason(
-                                        (CommandException) (ar.exception));
+                                reason = mOemPluginBase.commandExceptionToReason(
+                                        (CommandException) (ar.exception), mPhoneId);
                             } else {
                                 reason = new ImsReasonInfo(ImsReasonInfo.CODE_UT_NETWORK_ERROR, 0);
                             }
@@ -440,8 +447,8 @@ public class ImsUtImpl extends ImsUtImplBase {
                         } else {
                             ImsReasonInfo reason;
                             if (ar.exception instanceof CommandException) {
-                                reason = commandExceptionToReason(
-                                        (CommandException) (ar.exception));
+                                reason = mOemPluginBase.commandExceptionToReason(
+                                        (CommandException) (ar.exception), mPhoneId);
                             } else {
                                 reason = new ImsReasonInfo(ImsReasonInfo.CODE_UT_NETWORK_ERROR, 0);
                             }
@@ -526,7 +533,7 @@ public class ImsUtImpl extends ImsUtImplBase {
         return CommandsInterface.CF_REASON_NOT_REACHABLE;
     }
 
-    public int getConditionFromCFReason(int reason) {
+    public static int getConditionFromCFReason(int reason) {
         switch(reason) {
             case CommandsInterface.CF_REASON_UNCONDITIONAL:
                 return ImsUtInterface.CDIV_CF_UNCONDITIONAL;
@@ -765,24 +772,6 @@ public class ImsUtImpl extends ImsUtImplBase {
     }
 
     /**
-     * If number contains * or #, it will affect AT command MMI code parsing.
-     * Replace these special characters before generating MMI code.
-     * Recover these special characters when parsing MMI code.
-     */
-    public String convertSpecialCharacters(String number) {
-        String r = number;
-        if (r == null) {
-            return "";
-        }
-        r = r.replace("*", "^");
-        r = r.replace("#", "|");
-        if (SDBG) {
-            Log.d(TAG, "convertSpecialCharacters: number=" + number + ", r=" + r);
-        }
-        return r;
-    }
-
-    /**
      * Updates the configuration of the call barring.
      * @param cbType Call Barring Type
      * @param enable lock state
@@ -869,7 +858,7 @@ public class ImsUtImpl extends ImsUtImplBase {
         Message msg = mHandler.obtainMessage(IMS_UT_EVENT_SET_CF, requestId, 0, null);
         mImsRILAdapter.setCallForward(getCFActionFromAction(action),
                 getCFReasonFromCondition(condition), serviceClass,
-                convertSpecialCharacters(number), timeSeconds, msg);
+                number, timeSeconds, msg);
 
         return requestId;
     }
@@ -992,89 +981,6 @@ public class ImsUtImpl extends ImsUtImplBase {
         mListener = listener;
     }
 
-    public ImsReasonInfo commandExceptionToReason(CommandException commandException) {
-        CommandException.Error err = null;
-        ImsReasonInfo reason = null;
-
-        err = commandException.getCommandError();
-
-        if (DBG) {
-            Log.d(TAG, "commandException: " + err);
-        }
-        /*
-         * CME_409_CONFLICT                 CommandException.Error.OEM_ERROR_1
-         * CME_403_FORBIDDEN                CommandException.Error.OEM_ERROR_2
-         * CME_404_NOT_FOUND                CommandException.Error.OEM_ERROR_4
-         * CME_832_TERMINAL_BASE_SOLUTION   CommandException.Error.OEM_ERROR_7
-        */
-        if (err == CommandException.Error.OEM_ERROR_2) {
-            reason = new ImsReasonInfo(MtkImsReasonInfo.CODE_UT_XCAP_403_FORBIDDEN, 0);
-        } else if (err == CommandException.Error.OEM_ERROR_4) {
-            reason = new ImsReasonInfo(MtkImsReasonInfo.CODE_UT_XCAP_404_NOT_FOUND, 0);
-        } else if (err == CommandException.Error.OEM_ERROR_1) {
-            reason = new ImsReasonInfo(MtkImsReasonInfo.CODE_UT_XCAP_409_CONFLICT, 0,
-                    getXCAPErrorMessageFromSysProp(CommandException.Error.OEM_ERROR_1));
-        } else if (err == CommandException.Error.OEM_ERROR_7) {
-            reason = new ImsReasonInfo(MtkImsReasonInfo.CODE_UT_XCAP_832_TERMINAL_BASE_SOLUTION, 0);
-        } else if (err == CommandException.Error.REQUEST_NOT_SUPPORTED) {
-            reason = new ImsReasonInfo(ImsReasonInfo.CODE_UT_NOT_SUPPORTED, 0);
-        } else if (err == CommandException.Error.RADIO_NOT_AVAILABLE) {
-            reason = new ImsReasonInfo(ImsReasonInfo.CODE_UT_SERVICE_UNAVAILABLE, 0);
-        } else if (err == CommandException.Error.PASSWORD_INCORRECT) {
-            reason = new ImsReasonInfo(ImsReasonInfo.CODE_UT_CB_PASSWORD_MISMATCH, 0);
-        } else if (err == CommandException.Error.FDN_CHECK_FAILURE) {
-            reason = new ImsReasonInfo(ImsReasonInfo.CODE_FDN_BLOCKED, 0);
-        } else {
-            reason = new ImsReasonInfo(ImsReasonInfo.CODE_UT_NETWORK_ERROR, 0);
-        }
-        return reason;
-    }
-
-    public String getXCAPErrorMessageFromSysProp(CommandException.Error error) {
-        String propNamePrefix = ERROR_MSG_PROP_PREFIX + mPhoneId;
-
-        String fullErrorMsg = "";
-        String errorMsg = null;
-
-        int idx = 0;
-        String propName = propNamePrefix +"." + idx;
-        String propValue = "";
-
-        propValue = SystemProperties.get(propName, "");
-
-
-        while (!propValue.equals("")) {
-            // SystemProperties.set(propName, "");
-            fullErrorMsg += propValue;
-
-            idx++;
-            propName = propNamePrefix +"." + idx;
-            propValue = SystemProperties.get(propName, "");
-        }
-
-        Log.d(TAG, "fullErrorMsg: " + fullErrorMsg);
-
-        String errorCode = "";
-        switch (error) {
-            case OEM_ERROR_1:
-                errorCode = "409";
-                break;
-            default:
-                Log.d(TAG, "errorMsg: " + errorMsg);
-                return errorMsg;
-        }
-
-        if (!fullErrorMsg.startsWith(errorCode)) {
-            Log.d(TAG, "errorMsg: " + errorMsg);
-            return errorMsg;
-        }
-
-        errorMsg = fullErrorMsg.substring(errorCode.length() + 1);
-        Log.d(TAG, "errorMsg: " + errorMsg);
-
-        return errorMsg;
-    }
-
     public static int getAndIncreaseRequestId() {
         int requestId = 0;
         synchronized (mLock) {
@@ -1189,4 +1095,20 @@ public class ImsUtImpl extends ImsUtImplBase {
         return requestId;
     }
     /// @}
+
+    public static String encryptString(String message) {
+        Base64.Encoder encoder = Base64.getEncoder();
+        byte[] textByte = null;
+        try {
+            textByte = message.getBytes("UTF-8");
+        } catch (Exception e) {
+            e.printStackTrace();
+            textByte = null;
+        }
+
+        if (textByte == null) return "";
+
+        String encryptedString = encoder.encodeToString(textByte);
+        return encryptedString;
+    }
 }

@@ -64,6 +64,7 @@ public class SipMessage {
             = "Video calling is unavailable";
     public static final String NO_RTP_TIMEOUT_HEADER = "rtp-rtcp timeout";
     public static final String CALL_COMPLETED_ELSEWHERE_HEADER = "call completed elsewhere";
+    public static final String CALL_COMPLETED_BUSY_EVERYWHERE_HEADER = "busy everywhere";
     public static final String CALL_DECLINED_HEADER = "declined";
     public static final String CALL_REJECTED_HEADER = "call rejected by";
     public static final String CALL_MAXIMUM_ALREADY_REACHED =

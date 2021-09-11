@@ -60,11 +60,6 @@ public class ImsCallPluginBase implements ImsCallPlugin {
     }
 
     @Override
-    public int getModemMultiImsCount() throws ImsException {
-        return 2;
-    }
-
-    @Override
     public boolean isSupportMims() {
         return (SystemProperties.getInt(MULTI_IMS_SUPPORT, 1) > 1);
     }
@@ -86,26 +81,11 @@ public class ImsCallPluginBase implements ImsCallPlugin {
 
     @Override
     public int getUpgradeCancelFlag() {
-        return 0;
+        return 0x00010000;
     }
 
     @Override
     public int getUpgradeCancelTimeoutFlag() {
-        return 0;
-    }
-
-    @Override
-    public boolean isSpecialEmergencyNumber(int subId, String dialString) {
-        return false;
-    }
-
-    @Override
-    public void setSpecificEccCategory(int eccCat) {
-        return;
-    }
-
-    @Override
-    public int getServiceCategoryFromEcc(String number) {
         return 0;
     }
 

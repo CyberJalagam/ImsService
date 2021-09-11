@@ -53,27 +53,4 @@ public class ImsManagerOemPluginImpl extends ImsManagerOemPluginBase {
     public ImsManagerOemPluginImpl(Context context) {
         mContext = context;
     }
-
-    @Override
-    public boolean hasPlugin() {
-        return true;   // Enable IMS Config Plugin
-    }
-
-
-    /**
-     * Call Customer's ImsManager.updateImsServiceConfig
-     * @param context Android context
-     * @param phoneId Phone Id
-     * @param force is Force
-     * @return if success
-     */
-    @Override
-    public void updateImsServiceConfig(Context context,
-                                       int phoneId,
-                                       boolean force) {
-
-        // HwImsManager.updateImsServiceConfig(context, phoneId, force);
-        Log.d(TAG, "updateImsServiceConfig(), OEM");
-
-    }
 }

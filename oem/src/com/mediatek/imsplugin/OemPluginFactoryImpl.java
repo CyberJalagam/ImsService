@@ -41,6 +41,8 @@ import android.content.Context;
 import com.mediatek.ims.plugin.impl.OemPluginFactoryBase;
 import com.mediatek.ims.plugin.ImsManagerOemPlugin;
 import com.mediatek.ims.plugin.ImsRegistrationOemPlugin;
+import com.mediatek.ims.plugin.ImsSSOemPlugin;
+import com.mediatek.ims.plugin.ImsCallOemPlugin;
 
 public class OemPluginFactoryImpl extends OemPluginFactoryBase {
 
@@ -58,5 +60,21 @@ public class OemPluginFactoryImpl extends OemPluginFactoryBase {
      */
     public ImsRegistrationOemPlugin makeImsRegistrationPlugin(Context context) {
         return new ImsRegistrationOemPluginImpl(context);
+    }
+
+    /**
+     * Make a instance of ImsSSOemPlugin
+     * @return Instance of ImsSSOemPlugin
+     */
+    public ImsSSOemPlugin makeImsSSOemPlugin(Context context) {
+        return new ImsSSOemPluginImpl(context);
+    }
+
+    /**
+     * Make a instance of ImsCallPlugin
+     * @return Instance of ImsCallPlugin
+     */
+    public ImsCallOemPlugin makeImsCallPlugin(Context context) {
+        return new ImsCallOemPluginImpl(context);
     }
 }

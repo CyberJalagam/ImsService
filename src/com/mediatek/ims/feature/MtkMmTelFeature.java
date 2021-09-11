@@ -190,14 +190,22 @@ public class MtkMmTelFeature extends MmTelFeature {
 
         @Override
         public void notifyIncomingCall(ImsCallSessionImplBase c, Bundle extras) {
-            log("notifyIncomingCall ImsCallSessionImplBase " + c + " extras " + extras);
+            log("notifyIncomingCall ImsCallSessionImplBase " + c + " extras "
+                    + Rlog.pii(LOG_TAG, extras));
             onNotifyIncomingCall(c, extras);
         }
 
         @Override
         public void notifyIncomingCallSession(IImsCallSession c, Bundle extras) {
-            log("notifyIncomingCallSession IImsCallSession " + c + " extras " + extras);
+            log("notifyIncomingCallSession IImsCallSession " + c + " extras "
+                    + Rlog.pii(LOG_TAG, extras));
             onNotifyIncomingCallSession(c, extras);
+        }
+
+        @Override
+        public void updateCapbilities(CapabilityChangeRequest request) {
+            log("updateCapbilities " + request);
+            changeEnabledCapabilities(request, null);
         }
     };
 
@@ -588,7 +596,7 @@ public class MtkMmTelFeature extends MmTelFeature {
         if (ImsCommonUtil.supportMdAutoSetupIms()) {
             inst = ImsUtImpl.getInstance(mContext, mSlotId, mImsServiceImpl);
         } else {
-            LegacyComponentFactory factory = ExtensionFactory.makeLegacyComponentFactory();
+            LegacyComponentFactory factory = ExtensionFactory.makeLegacyComponentFactory(mContext);
             inst = factory.makeImsUt(mContext, mSlotId, mImsServiceImpl);
         }
 

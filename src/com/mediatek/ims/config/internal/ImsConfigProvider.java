@@ -309,7 +309,8 @@ final public class ImsConfigProvider extends ContentProvider {
                     // Check SIM state
                     if (simState.equals(IccCardConstants.INTENT_VALUE_ICC_READY) ||
                           simState.equals(IccCardConstants.INTENT_VALUE_ICC_IMSI) ||
-                          simState.equals(IccCardConstants.INTENT_VALUE_ICC_LOADED)) {
+                          simState.equals(IccCardConstants.INTENT_VALUE_ICC_LOADED) ||
+                          simState.equals(IccCardConstants.INTENT_VALUE_ICC_LOCKED)) {
                         isSimStateAllow = true;
                     } else {
                         isSimStateAllow = false;

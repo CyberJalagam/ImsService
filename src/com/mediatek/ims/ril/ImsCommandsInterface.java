@@ -37,8 +37,13 @@ package com.mediatek.ims.ril;
 
 import android.os.Handler;
 import android.os.Message;
+import android.telephony.ims.ImsCallProfile;
 
 import com.android.internal.telephony.UUSInfo;
+
+import com.mediatek.ims.ImsCallInfo;
+
+import java.util.ArrayList;
 
 public interface ImsCommandsInterface {
     enum RadioState {
@@ -154,20 +159,6 @@ public interface ImsCommandsInterface {
     void turnOffImsVideo(Message response);
 
     /**
-     * Turn ON IMS Voice
-     * @param phoneId
-     * @param response
-     */
-    void turnOnImsVoice(Message response);
-
-    /**
-     * Turn OFF Voice over IMS
-     * @param phoneId
-     * @param response
-     */
-    void turnOffImsVoice(Message response);
-
-    /**
      * Turn OFF Voice over Wi-Fi
      * @param phoneId
      * @param response
@@ -257,12 +248,13 @@ public interface ImsCommandsInterface {
     /**
      * Start Call
      * @param callee
+     * @param callProfile
      * @param clirMode
      * @param isEmergency
      * @param isVideoCall
      * @param response
      */
-    void start(String callee, int clirMode, boolean isEmergency,
+    void start(String callee, ImsCallProfile callProfile, int clirMode, boolean isEmergency,
                boolean isVideoCall, Message response);
 
     /**
@@ -352,18 +344,27 @@ public interface ImsCommandsInterface {
      * @param participant
      * @param response
      */
-    void removeParticipant(int confCallId, String participant,
+    void removeParticipants(int confCallId, String participant,
                             Message response);
 
     /**
      * Invite Conference Participants
      * @param confCallId
-     * @param addressToAdd
-     * @param callIdToAdd
+     * @param participant
      * @param response
      */
-    void inviteParticipant(int confCallId, String addressToAdd,
-                           int callIdToAdd, Message response);
+    void inviteParticipants(int confCallId, String participant,
+                            Message response);
+
+    /**
+     * Invite Participants by CallId
+     * @param confCallId
+     * @param callInfo
+     * @param response
+     */
+    void inviteParticipantsByCallId(int confCallId, ImsCallInfo callInfo,
+            Message response);
+
 
     /**
      * Swap Call
@@ -373,11 +374,10 @@ public interface ImsCommandsInterface {
 
     /**
      * Send USSI
-     * @param action
      * @param ussiString
      * @param response
      */
-    void sendUSSI(int action, String ussiString, Message response);
+    void sendUSSI(String ussiString, Message response);
 
     /**
      * Cancel Send Ussi
@@ -396,13 +396,6 @@ public interface ImsCommandsInterface {
                 Message response);
 
     /**
-     * Set emergency call service category
-     * @param serviceCategory
-     * @param response
-     */
-    void setEccServiceCategory(int serviceCategory, Message response);
-
-    /**
      * Dial a conference call.
      * @param participants participants' dailing number.
      * @param clirMode indication to present the dialing number or not.
@@ -411,17 +404,6 @@ public interface ImsCommandsInterface {
      */
     void conferenceDial(String[] participants, int clirMode,
                         boolean isVideoCall, Message result);
-
-    /**
-     * Dial an emergency call
-     * @param address
-     * @param clirMode
-     * @param uusInfo
-     * @param phoneId
-     * @param response
-     */
-    void emergencyDial(String address, int clirMode,
-                       UUSInfo uusInfo, Message response);
 
     /**
      * Hold a call
@@ -467,27 +449,28 @@ public interface ImsCommandsInterface {
                          Message response);
 
     /**
+     * Approve ECC Redial or not
+     * @param approve
+     * @param callId
+     * @param response
+     */
+    void approveEccRedial(int approve, int callId, Message response);
+
+    /**
      * Accept call
      * @param response
      */
     void accept(Message response);
 
     /**
-     * Send a ACK for 'BearActivationDone'
+     * Send a ACK for 'BearActivationDone/BearDeactivationDone'
      * @param aid
-     * @param status
-     */
-    void responseBearerActivationDone(int aid, int status,
-                                      Message response);
-
-    /**
-     * Send a ACK for 'BearDeactivationDone'
-     * @param aid
+     * @param action
      * @param status
      * @param response
      */
-    void responseBearerDeactivationDone(int aid, int status,
-                                        Message response);
+    void responseBearerStateConfirm(int aid, int action, int status,
+                                      Message response);
 
     /**
      * Set ims bearer notification
@@ -538,22 +521,6 @@ public interface ImsCommandsInterface {
      * @param response
      */
     void sendWfcProfileInfo(int wfcPreference, Message response);
-
-    /**
-     * Set a registrant for 'OnNetworkInitUSSI'
-     * @param h
-     * @param what
-     * @param obj
-     */
-    void setOnNetworkInitUSSI(Handler h, int what, Object obj);
-
-    /**
-     * Set a registrant for 'OnNetworkInitUSSI'
-     * @param h
-     * @param what
-     * @param obj
-     */
-    void unSetOnNetworkInitUSSI(Handler h);
 
     /**
      * Set a registrant for 'OnUSSI'
@@ -647,18 +614,32 @@ public interface ImsCommandsInterface {
     void unsetOnIncomingCallIndication(Handler h);
 
     /**
-     * Set a registrant for 'IncomingCallAdditionalInfo'
+     * Set a registrant for 'CallAdditionalInfo'
      * @param h
      * @param what
      * @param obj
      */
-    public void setOnIncomingCallAdditionalInfo(Handler h, int what, Object obj);
+    public void registerForCallAdditionalInfo(Handler h, int what, Object obj);
 
     /**
-     * Unset a registrant for 'IncomingCallAdditionalInfo'
+     * Unset a registrant for 'CallAdditionalInfo'
      * @param h
      */
-    public void unsetOnIncomingCallAdditionalInfo(Handler h);
+    public void unregisterForCallAdditionalInfo(Handler h);
+
+    /**
+     * Register a registrant for 'CallRatIndication'
+     * @param h
+     * @param what
+     * @param obj
+     */
+    public void registerForCallRatIndication(Handler h, int what, Object obj);
+
+    /**
+     * Unregister a registrant for 'CallRatIndication'
+     * @param h
+     */
+    public void unregisterForCallRatIndication(Handler h);
 
     /**
      * Register a registrant for 'ImsEventPackage'
@@ -751,6 +732,20 @@ public interface ImsCommandsInterface {
      * @param h
      */
     void unregisterForVolteSubscription(Handler h);
+
+    /**
+     * Set a registrant for 'SuppServiceNotification'
+     * @param h
+     * @param what
+     * @param obj
+     */
+    void setOnSuppServiceNotification(Handler h, int what, Object obj);
+
+    /**
+     * Unset a registrant for 'SuppServiceNotification'
+     * @param h
+     */
+    void unSetOnSuppServiceNotification(Handler h);
 
     /**
      * Register a registrant for 'CallProgressIndicator'
@@ -971,7 +966,7 @@ public interface ImsCommandsInterface {
     void unregisterForVideoCapabilityIndicator(Handler h);
 
     /**
-     * Register a registrant for 'ImsRTPInfoReport'
+     * Register a registrant for 'ImsRTPInfo'
      * @param h
      * @param what
      * @param obj
@@ -979,7 +974,7 @@ public interface ImsCommandsInterface {
     void registerForImsRTPInfo(Handler h, int what, Object obj);
 
     /**
-     * Unregister a registrant for 'ImsRTPInfoReport'
+     * Unregister a registrant for 'ImsRTPInfo'
      * @param h
      */
     void unregisterForImsRTPInfo(Handler h);
@@ -999,32 +994,18 @@ public interface ImsCommandsInterface {
     void unregisterForVolteSettingChanged(Handler h);
 
     /**
-     * Register a registrant for 'BearerActivation'
+     * Register a registrant for 'BearerState'
      * @param h
      * @param what
      * @param obj
      */
-    void registerForBearerActivation(Handler h, int what, Object obj);
+    void registerForBearerState(Handler h, int what, Object obj);
 
     /**
-     * Unregister a registrant for 'BearerActivation'
+     * Unregister a registrant for 'BearerState'
      * @param h
      */
-    void unregisterForBearerActivation(Handler h);
-
-    /**
-     * Register a registrant for 'BearerDeactivation'
-     * @param h
-     * @param what
-     * @param obj
-     */
-    void registerForBearerDeactivation(Handler h, int what, Object obj);
-
-    /**
-     * Unregister a registrant for 'BearerDeactivation'
-     * @param h
-     */
-    void unregisterForBearerDeactivation(Handler h);
+    void unregisterForBearerState(Handler h);
 
     /** Register for IMS bearer initialize event.
      *
@@ -1130,6 +1111,10 @@ public interface ImsCommandsInterface {
 
     public void unregisterForSpeechCodecInfo(Handler h);
 
+    public void registerForSipHeaderInd(Handler h, int what, Object obj);
+
+    public void unregisterForSipHeaderInd(Handler h);
+
     /**
      * Register for redial IMS ECC indication event. (RIL_UNSOL_REDIAL_EMERGENCY_INDICATION)
      *
@@ -1177,6 +1162,11 @@ public interface ImsCommandsInterface {
     public void registerForImsDialog(Handler h, int what, Object obj);
 
     public void unregisterForImsDialog(Handler h);
+
+    public void registerForSsacStateInd(Handler h, int what, Object obj);
+
+    public void unregisterForSsacStateInd(Handler h);
+
     // ========== Call Control APIs =====================================================
     /**
      * Set Voice Call Preference
@@ -1205,6 +1195,140 @@ public interface ImsCommandsInterface {
     void acknowledgeLastIncomingGsmSms(boolean success, int cause, Message response);
     void acknowledgeLastIncomingCdmaSmsEx(boolean success, int cause, Message response);
     // SMS-END
+
+    // ========== RTT APIs =====================================================
+    /**
+     * Set RTT Mode
+     * RIL_REQUEST_SET_RTT_MODE
+     * @param mode Mode
+     * @param response Response object
+     */
+    void setRttMode(int mode, Message response);
+
+    /**
+     * Send RTT Modify Request
+     * RIL_REQUEST_SEND_RTT_MODIFY_REQUEST
+     * @param callId Call id
+     * @param newMode New mode
+     * @param response Response object
+     */
+    void sendRttModifyRequest(int callId, int newMode, Message response);
+
+    /**
+     * Send RTT Text
+     * RIL_REQUEST_SEND_RTT_TEXT
+     * @param callId Call Id
+     * @param text Text
+     * @param response Response object
+     */
+    void sendRttText(int callId, String text, int length, Message response);
+
+    /**
+     * Request RTT Modify Response
+     * RIL_REQUEST_RTT_MODIFY_REQUEST_RESPONSE
+     * @param callId Call id
+     * @param result Result
+     * @param response Response object
+     */
+    void setRttModifyRequestResponse(int callId, int result, Message response);
+
+    /**
+     * Request RTT Audio Indication
+     * RIL_REQUEST_TOGGLE_RTT_AUDIO_INDICATION
+     * @param callId Call id
+     * @param enable if enable RTT audio
+     * @param response Response object
+     */
+    void toggleRttAudioIndication(int callId, int enable, Message response);
+
+    /**
+     * Registers the handler for Rtt Modify Response event.
+     * @param h Handler for notification message.
+     * @param what User-defined message code.
+     * @param obj User object.
+     *
+     */
+    void registerForRttModifyResponse(Handler h, int what, Object obj);
+
+    /**
+     * Unregisters the handler for Rtt Modify Response event.
+     *
+     * @param h Handler for notification message.
+     *
+     */
+    void unregisterForRttModifyResponse(Handler h);
+
+    /**
+     * Registers the handler for Rtt Text Receive event.
+     * @param h Handler for notification message.
+     * @param what User-defined message code.
+     * @param obj User object.
+     *
+     */
+    void registerForRttTextReceive(Handler h, int what, Object obj);
+
+    /**
+     * Unregisters the handler for Rtt Text Receive event.
+     *
+     * @param h Handler for notification message.
+     *
+     */
+    void unregisterForRttTextReceive(Handler h);
+
+    /**
+     * Registers the handler for Rtt Modify Request Receive event.
+     * @param h Handler for notification message.
+     * @param what User-defined message code.
+     * @param obj User object.
+     *
+     */
+    void registerForRttModifyRequestReceive(Handler h, int what, Object obj);
+
+    /**
+     * Unregisters the handler for Rtt Modify Request Receive event.
+     *
+     * @param h Handler for notification message.
+     *
+     */
+    void unregisterForRttModifyRequestReceive(Handler h);
+
+    /**
+     * Registers the handler for RTT capability changed event.
+     * @param h Handler for notification message.
+     * @param what User-defined message code.
+     * @param obj User object.
+     *
+     */
+    void registerForRttCapabilityIndicator(Handler h, int what, Object obj);
+
+
+    /**
+     * Unregisters the handler for RTT capability changed event.
+     *
+     * @param h Handler for notification message.
+     *
+     */
+    void unregisterForRttCapabilityIndicator(Handler h);
+
+
+    /**
+     * Registers the handler for RTT audio changed event.
+     * @param h Handler for notification message.
+     * @param what User-defined message code.
+     * @param obj User object.
+     *
+     */
+    void registerForRttAudioIndicator(Handler h, int what, Object obj);
+
+
+    /**
+     * Unregisters the handler for RTT audio changed event.
+     *
+     * @param h Handler for notification message.
+     *
+     */
+    void unregisterForRttAudioIndicator(Handler h);
+
 
     // ========== Depreted APIs =========================================================
     /**
@@ -1239,23 +1363,15 @@ public interface ImsCommandsInterface {
 
 
     /**
-     * Send a ACK for 'BearActivationDone'
+     * Send a ACK for 'BearActivationDone/BearDeactivationDone'
      * @param phoneid
      * @param aid
      * @param status
+     * @param action
      */
     @Deprecated
-    void responseBearerActivationDone(int phoneid, int aid, int status);
+    void responseBearerStateConfirm(int phoneid, int aid, int action, int status);
 
-    /**
-     * Send a ACK for 'BearDeactivationDone'
-     * @param phoneid
-     * @param aid
-     * @param status
-     * @param response
-     */
-    @Deprecated
-    void responseBearerDeactivationDone(int phoneid, int aid, int status);
 
     /**
      * Set ims bearer notification
@@ -1264,20 +1380,6 @@ public interface ImsCommandsInterface {
      */
     @Deprecated
     void setImsBearerNotification(int phoneid, int enable);
-
-    /**
-     * Start Call
-     * @param callee
-     * @param clirMode
-     * @param isEmergency
-     * @param isVideoCall
-     * @param phoneid
-     * @param response
-     */
-    @Deprecated
-    void start(String callee, int clirMode, boolean isEmergency,
-               boolean isVideoCall, int phoneid, Message response);
-
 
     /**
      * Start Conference
@@ -1426,20 +1528,57 @@ public interface ImsCommandsInterface {
     void getImsCfgProvisionValue(int configId, Message response);
 
     /**
-     * Set IMS Config Resource Capability Value
-     * @param featureId
-     * @param value
-     * @param response
-     */
-    void setImsCfgResourceCapValue(int featureId, int value, Message response);
-
-    /**
      * Get IMS Config Resource Capability Value
      * @param featureId
      * @param response
      */
     void getImsCfgResourceCapValue(int featureId, Message response);
 
+    /**
+     * Query Voice over PS status
+     *
+     * @param response
+     */
+    public void queryVopsStatus(Message result);
+
+    /**
+     * Notify ImsService is ready to receive pending indication
+     */
+    public void notifyImsServiceReady();
+
+    /**
+     * Set SIP header
+     * @param total
+     * @param index
+     * @param headerCount
+     * @param headerValuePair
+     * @param response
+     */
+    void setSipHeader(int total, int index, int headerCount, String headerValuePair, Message response);
+
+    /**
+     * Enable SIP header report
+     * @param callId
+     * @param headerType
+     * @param response
+     */
+    void setSipHeaderReport(String callId, String headerType, Message response);
+
+    /**
+     * Set IMS call mode
+     * @param mode
+     * @param response
+     */
+    void setImsCallMode(int mode, Message response);
+
+    public void querySsacStatus(Message response);
+
+    /**
+     * Set additional call information to modem.
+     * @param info
+     * @param response
+     */
+    void setCallAdditionalInfo(ArrayList<String> info, Message response);
 }
 
 

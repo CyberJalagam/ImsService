@@ -33,18 +33,21 @@
  * applicable license agreements with MediaTek Inc.
  */
 
-package com.mediatek.ims.internal.op;
+package com.mediatek.ims.plugin;
 
+import com.android.ims.ImsException;
 
-import android.telephony.Rlog;
+public interface ImsCallOemPlugin {
 
-import com.mediatek.ims.ril.ImsCommandsInterface;
-import com.mediatek.ims.ril.OpImsCommandsInterface;
+    public String getVTUsageAction();
 
-public interface OpImsService {
+    public String getVTUsagePermission();
 
-    /**
-     * Set RTT mode for incoming call
-     */
-    void setRttModeForIncomingCall(ImsCommandsInterface imsRILAdapter);
+    public boolean needHangupOtherCallWhenEccDialing();
+
+    public boolean isUpdateViwifiFeatureValueAsViLTE();
+
+    public boolean needReportCallTerminatedForFdn();
+
+    public boolean useNormalDialForEmergencyCall();
 }

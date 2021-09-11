@@ -10,6 +10,7 @@ import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.location.LocationRequest;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -77,6 +78,10 @@ public class WfcDispatcher implements ImsEventDispatcher.VaEventDispatcher {
     private static final int MSG_REG_IMSA_REQUEST_GEO_LOCATION_INFO = 96009;
     private static final int MSG_REG_IMSA_RESPONSE_GETO_LOCATION_INFO = 91030;
 
+    private static final String ACTION_LOCATED_PLMN_CHANGED
+            = "com.mediatek.intent.action.LOCATED_PLMN_CHANGED";
+    private static final String EXTRA_ISO = "iso";
+
     /* UA <-> WfcDispatcher Message ID definition end */
 
     private static class GeoLocationTask {
@@ -102,8 +107,8 @@ public class WfcDispatcher implements ImsEventDispatcher.VaEventDispatcher {
             return "[GeoLocationTask objId: " + hashCode() +
                     ", phoneId: " + phoneId +
                     ", transactionId: " + transactionId +
-                    ", latitude: " + latitude +
-                    ", longitude: " + longitude +
+                    //", latitude: " + latitude +
+                    //", longitude: " + longitude +
                     ", accuracy: " + accuracy +
                     ", method: " + method +
                     ", city: " + city +
@@ -199,8 +204,8 @@ public class WfcDispatcher implements ImsEventDispatcher.VaEventDispatcher {
                 return;
             }
             log("onReceive action:" + intent.getAction());
-            if (intent.getAction().equals(TelephonyIntents.ACTION_LOCATED_PLMN_CHANGED)) {
-                String lowerCaseCountryCode = (String) intent.getExtra(TelephonyIntents.EXTRA_ISO);
+            if (intent.getAction().equals(ACTION_LOCATED_PLMN_CHANGED)) {
+                String lowerCaseCountryCode = (String) intent.getExtra(EXTRA_ISO);
                 if (lowerCaseCountryCode != null) {
 
                     mPlmnCountryCode = lowerCaseCountryCode.toUpperCase();
@@ -276,7 +281,7 @@ public class WfcDispatcher implements ImsEventDispatcher.VaEventDispatcher {
 
                     double latitude = location.getLatitude();
                     double longitude = location.getLongitude();
-                    log("update all GeoLocationTask with (" + latitude + ", " + longitude + ")");
+                    log("update all GeoLocationTask");
 
                     for (GeoLocationTask locationTask : mNetworkLocationTasks) {
                         locationTask.latitude = latitude;
@@ -323,7 +328,7 @@ public class WfcDispatcher implements ImsEventDispatcher.VaEventDispatcher {
 
     private void registerForBroadcast() {
         IntentFilter filter = new IntentFilter();
-        filter.addAction(TelephonyIntents.ACTION_LOCATED_PLMN_CHANGED);
+        filter.addAction(ACTION_LOCATED_PLMN_CHANGED);
         mContext.registerReceiver(mReceiver, filter);
     }
 
@@ -533,7 +538,6 @@ public class WfcDispatcher implements ImsEventDispatcher.VaEventDispatcher {
     }
 
     private boolean requestGeoLocationFromNetworkLocation() {
-        log("requestGeoLocationFromNetworkLocation");
         if (mLocationManager == null) {
             log("getGeoLocationFromNetworkLocation: empty locationManager, return");
             return false;
@@ -557,20 +561,76 @@ public class WfcDispatcher implements ImsEventDispatcher.VaEventDispatcher {
             }
         } while (false);
 
-        mLocationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,
-                NETWORK_LOCATION_UPDATE_TIME, 0, mLocationListener);
-        log("requestGeoLocationFromNetworkLocation: request networkLocation update");
+        addPackageInLocationSettingsWhitelist();
+        LocationRequest request = LocationRequest.createFromDeprecatedProvider(
+                LocationManager.NETWORK_PROVIDER, NETWORK_LOCATION_UPDATE_TIME /*minTime*/,
+                0 /*minDistance*/, false/*oneShot*/);
+        request.setHideFromAppOps(true);
+        request.setLocationSettingsIgnored(true);
+        mLocationManager.requestLocationUpdates(request, mLocationListener, null);
+        Log.d(TAG, "requestGeoLocationFromNetworkLocation");
 
         return true;
     }
 
     private void cancelNetworkGeoLocationRequest() {
-        log("cancelNetworkGeoLocationRequest");
         if (mLocationManager == null) {
             log("cancelNetworkGeoLocationRequest: empty locationManager, return");
             return;
         }
         mLocationManager.removeUpdates(mLocationListener);
+        removePackageInLocationSettingsWhitelist();
+        Log.d(TAG, "cancelNetworkGeoLocationRequest");
+    }
+
+    private void addPackageInLocationSettingsWhitelist() {
+        final String LOCATION_IGNORE_SETTINGS_PACKAGE_WHITELIST =
+                "location_ignore_settings_package_whitelist";
+        String packageName = mContext.getPackageName();
+
+        String whitelist = Settings.Global.getString(
+                mContext.getContentResolver(),
+                LOCATION_IGNORE_SETTINGS_PACKAGE_WHITELIST);
+        if (whitelist == null || whitelist.indexOf(packageName) == -1) {
+            String outStr = (whitelist == null) ? "" : whitelist + ",";
+            outStr += packageName;
+            log("Add WFC in location setting whitelist:" + outStr);
+            Settings.Global.putString(
+                    mContext.getContentResolver(),
+                    LOCATION_IGNORE_SETTINGS_PACKAGE_WHITELIST,
+                    outStr);
+        }
+    }
+
+    private void removePackageInLocationSettingsWhitelist() {
+        final String LOCATION_IGNORE_SETTINGS_PACKAGE_WHITELIST =
+                "location_ignore_settings_package_whitelist";
+        String packageName = mContext.getPackageName();
+
+        String whitelist = Settings.Global.getString(
+                mContext.getContentResolver(),
+                LOCATION_IGNORE_SETTINGS_PACKAGE_WHITELIST);
+        int index = -1;
+        String outStr = "";
+        if (whitelist != null) {
+            index = whitelist.indexOf("," + packageName);
+            if (index != -1) { /// found ','+package
+                outStr = whitelist.replace("," + packageName, "");
+            } else { /// not found, try to find package name only
+                index = whitelist.indexOf(packageName);
+                if(index != -1) {
+                    outStr = whitelist.replace(packageName, "");
+                }
+            }
+        }
+
+        if (index != -1) { /// outStr is replaced as new whitelist
+            log("Remove WFC in location setting whitelist:" + outStr);
+            Settings.Global.putString(
+                    mContext.getContentResolver(),
+                    LOCATION_IGNORE_SETTINGS_PACKAGE_WHITELIST,
+                    outStr);
+        }
     }
 
     private void handleAidInfoUpdate() {

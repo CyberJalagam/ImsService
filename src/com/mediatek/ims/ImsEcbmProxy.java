@@ -44,13 +44,11 @@ import android.os.PersistableBundle;
 import android.os.RemoteException;
 import android.os.SystemProperties;
 
-import android.telephony.CarrierConfigManager;
 import android.telephony.Rlog;
 import android.telephony.ims.stub.ImsEcbmImplBase;
 
 import com.android.ims.ImsManager;
 
-import com.mediatek.ims.common.ImsCarrierConfigConstants;
 import com.mediatek.ims.common.SubscriptionManagerHelper;
 import com.mediatek.ims.config.internal.ImsConfigUtils;
 
@@ -127,29 +125,16 @@ public class ImsEcbmProxy extends ImsEcbmImplBase {
 
     /// M: E911 During VoLTE off @{
     private void tryTurnOffVolteAfterE911() {
-        if (mImsServiceCT.getEnableVolteForImsEcc()) {
+        ImsManager imsManager = ImsManager.getInstance(mContext, mPhoneId);
+        boolean volteEnabledByPlatform = imsManager.isVolteEnabledByPlatform();
+        boolean volteEnabledByUser = imsManager.isEnhanced4gLteModeSettingEnabledByUser();
+        if (mImsServiceCT.getEnableVolteForImsEcc()
+            && (!volteEnabledByPlatform || !volteEnabledByUser)) {
             ImsConfigUtils.triggerSendCfgForVolte(mContext, mImsRILAdapter, mPhoneId, 0);
             mImsServiceCT.setEnableVolteForImsEcc(false);
         }
     }
     /// @}
-
-    private boolean isImsEcbmSupported() {
-        boolean res = false;
-        int subId = SubscriptionManagerHelper.getSubIdUsingPhoneId(mPhoneId);
-        CarrierConfigManager configMgr =
-                (CarrierConfigManager) mContext.getSystemService(Context.CARRIER_CONFIG_SERVICE);
-        PersistableBundle carrierConfig = configMgr.getConfigForSubId(subId);
-        boolean isImsEcbmSupportedByCarrier = carrierConfig.getBoolean(
-                ImsCarrierConfigConstants.MTK_KEY_CARRIER_IMS_ECBM_SUPPORTED);
-
-        if (isImsEcbmSupportedByCarrier || MTK_VZW_SUPPORT) {
-            res = true;
-        }
-
-        logWithPhoneId("isImsEcbmSupported(): " + res);
-        return res;
-    }
 
     private void logWithPhoneId(String msg) {
 

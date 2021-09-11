@@ -92,6 +92,7 @@ public class ImsConfigUtils {
             return;
         }
         Intent intent = new Intent(ACTION_WIFI_ONLY_MODE_CHANGED);
+        intent.setPackage("com.android.phone");
         intent.putExtra(EXTRA_WIFI_ONLY_MODE_CHANGED, mode);
         if (ImsCommonUtil.supportMims() == true) {
             intent.putExtra(PhoneConstants.PHONE_KEY, phoneId);

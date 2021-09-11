@@ -7,7 +7,7 @@
  * any reproduction, modification, use or disclosure of MediaTek Software,
  * and information contained herein, in whole or in part, shall be strictly prohibited.
  */
-/* MediaTek Inc. (C) 2017. All rights reserved.
+/* MediaTek Inc. (C) 2019. All rights reserved.
  *
  * BY OPENING THIS FILE, RECEIVER HEREBY UNEQUIVOCALLY ACKNOWLEDGES AND AGREES
  * THAT THE SOFTWARE/FIRMWARE AND ITS DOCUMENTATIONS ("MEDIATEK SOFTWARE")
@@ -33,24 +33,36 @@
  * applicable license agreements with MediaTek Inc.
  */
 
-package com.mediatek.ims.internal.op;
+package com.mediatek.ims;
 
-import android.telephony.Rlog;
+/**
+ * Object returned by the RIL upon successful completion of sendSMS.
+ * Contains message reference and ackPdu.
+ *
+ */
+public class MtkSmsResponse {
+    /** Message reference of the just-sent SMS. */
+    public int mMessageRef;
+    /** ackPdu for the just-sent SMS. */
+    String mAckPdu;
+    /**
+     * errorCode: See 3GPP 27.005, 3.2.5 for GSM/UMTS,
+     * 3GPP2 N.S0005 (IS-41C) Table 171 for CDMA, -1 if unknown or not applicable.
+     */
+    public int mErrorCode;
 
-import com.mediatek.ims.ril.ImsCommandsInterface;
-import com.mediatek.ims.ril.OpImsCommandsInterface;
-
-public class OpImsServiceBase implements OpImsService {
-
-    // Tag
-    private static final String TAG = "OpImsServiceBase";
-
-    protected void printDefaultLog(String funcName) {
-        Rlog.d(TAG, funcName + " call to OP base");
+    public MtkSmsResponse(int messageRef, String ackPdu, int errorCode) {
+        mMessageRef = messageRef;
+        mAckPdu = ackPdu;
+        mErrorCode = errorCode;
     }
 
     @Override
-    public void setRttModeForIncomingCall(ImsCommandsInterface imsRILAdapter) {
-        printDefaultLog("setRttModeForIncomingCall");
+    public String toString() {
+        String ret = "{ mMessageRef = " + mMessageRef
+                + ", mErrorCode = " + mErrorCode
+                + ", mAckPdu = " + mAckPdu
+                + "}";
+        return ret;
     }
 }

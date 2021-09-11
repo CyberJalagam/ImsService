@@ -43,6 +43,7 @@ import com.mediatek.ims.plugin.ExtensionPluginFactory;
 import com.mediatek.ims.plugin.impl.ImsSelfActivatorBase;
 import com.mediatek.ims.plugin.impl.ImsCallPluginBase;
 import com.mediatek.ims.plugin.impl.ExtensionPluginFactoryBase;
+import com.mediatek.ims.plugin.impl.ImsSSExtPluginBase;
 
 import com.mediatek.ims.ImsService;
 import android.os.Handler;
@@ -71,4 +72,11 @@ public class ExtensionPluginFactoryImpl extends ExtensionPluginFactoryBase {
         return new ImsSelfActivatorImpl(context, handler, callSessionProxy, imsRILAdapter, imsService, phoneId);
     }
 
+    @Override
+    public ImsSSExtPluginBase makeImsSSExtPlugin(Context context) {
+
+        Log.d("ExtensionPluginFactoryImpl","makeImsSSExtPlugin()");
+
+        return new ImsSSExtPluginImpl(context);
+    }
 }

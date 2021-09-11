@@ -44,7 +44,7 @@ public class SubscriptionManagerHelper {
     public static int getSubIdUsingPhoneId(int phoneId) {
         int [] values = SubscriptionManager.getSubId(phoneId);
         if(values == null || values.length <= 0) {
-            return SubscriptionManager.getDefaultSubscriptionId();
+            return SubscriptionManager.INVALID_SUBSCRIPTION_ID;
         }
         else {
             return values[0];

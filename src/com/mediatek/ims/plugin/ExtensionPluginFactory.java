@@ -66,4 +66,10 @@ public interface ExtensionPluginFactory {
     ImsSelfActivatorBase makeImsSelfActivator(
             Context context, Handler handler, ImsCallSessionProxy callSessionProxy,
             ImsCommandsInterface imsRILAdapter, ImsService imsService, int phoneId);
+
+    /**
+     * Make a instance of ImsSSExtPlugin
+     * @return Instance of ImsSSExtPlugin
+     */
+    ImsSSExtPlugin makeImsSSExtPlugin(Context context);
 }

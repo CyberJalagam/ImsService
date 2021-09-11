@@ -41,11 +41,11 @@ import android.telephony.Rlog;
 import android.text.TextUtils;
 import android.os.SystemProperties;
 import android.os.Build;
+import android.util.SparseArray;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.HashMap;
 import java.util.Map;
 
 import com.mediatek.ims.ImsCallInfo;
@@ -78,8 +78,8 @@ public class ImsServiceCallTracker {
     private static final int CALL_MSG_TYPE_ACTIVE = 132;
     private static final int CALL_MSG_TYPE_DISCONNECTED = 133;
 
-    private static HashMap<Integer, ImsServiceCallTracker> mImsServiceCTs =
-            new HashMap<Integer, ImsServiceCallTracker>();
+    private static SparseArray<ImsServiceCallTracker> mImsServiceCTs =
+            new SparseArray<ImsServiceCallTracker>();
 
     private int mPhoneId;
     private boolean mEnableVolteForImsEcc = false;
@@ -234,6 +234,20 @@ public class ImsServiceCallTracker {
         return false;
     }
 
+    public static boolean isEccExistOnAnySlot() {
+        for (int i = 0; i < mImsServiceCTs.size(); i++) {
+            ImsServiceCallTracker imsServiceCT = mImsServiceCTs.valueAt(i);
+            boolean isEccExist = false;
+
+            if (imsServiceCT != null) {
+                if (imsServiceCT.isEccExist()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public boolean isEccExist() {
 
         for (Map.Entry<String, ImsCallInfo> entry : mCallConnections.entrySet()) {
@@ -352,6 +366,7 @@ public class ImsServiceCallTracker {
             {
                 logWithPhoneId("processCallInfoIndication() : CALL_MSG_TYPE_MT => "
                                + "callId = " + callId
+                               + ", callMode = " + callMode
                                + ", isConference = " + isConference
                                + ", isConferenceHost = " + isConferenceHost
                                + ", isVideo = " + isVideo
@@ -375,6 +390,7 @@ public class ImsServiceCallTracker {
 
                 logWithPhoneId("processCallInfoIndication() : CALL_MSG_TYPE_ID_ASSIGN => "
                                + "callId = " + callId
+                               + ", callMode = " + callMode
                                + ", isConference = " + isConference
                                + ", isConferenceHost = " + isConferenceHost
                                + ", isVideo = " + isVideo
@@ -395,41 +411,68 @@ public class ImsServiceCallTracker {
             }
             case CALL_MSG_TYPE_ALERT:   // Record call string to mCallConnections for MO case.
             {
-                logWithPhoneId("processCallInfoIndication() : CALL_MSG_TYPE_ALERT => callId = " + callId + "isConference = " + isConference + "isVideo = " + isVideo + "isEcc = " + isEcc);
+                logWithPhoneId("processCallInfoIndication() : CALL_MSG_TYPE_ALERT => "
+                               + "callId = " + callId
+                               + ", callMode = " + callMode
+                               + ", isConference = " + isConference
+                               + ", isConferenceHost = " + isConferenceHost
+                               + ", isVideo = " + isVideo
+                               + ", isEcc = " + isEcc);
 
                 imsCallInfo = mCallConnections.get(callId);
                 if (imsCallInfo == null) return;
                 imsCallInfo.mIsConference = isConference;
+                imsCallInfo.mIsConferenceHost = isConferenceHost;
                 imsCallInfo.mIsVideo = isVideo;
                 mCallConnections.put(callId, imsCallInfo);
                 break;
             }
             case CALL_MSG_TYPE_HELD:
             {
-                logWithPhoneId("processCallInfoIndication() : CALL_MSG_TYPE_HELD => callId = " + callId + "isConference = " + isConference + "isVideo = " + isVideo + "isEcc = " + isEcc);
+                logWithPhoneId("processCallInfoIndication() : CALL_MSG_TYPE_HELD => "
+                               + "callId = " + callId
+                               + ", callMode = " + callMode
+                               + ", isConference = " + isConference
+                               + ", isConferenceHost = " + isConferenceHost
+                               + ", isVideo = " + isVideo
+                               + ", isEcc = " + isEcc);
 
                 imsCallInfo = mCallConnections.get(callId);
                 if (imsCallInfo == null) return;
                 imsCallInfo.mState = ImsCallInfo.State.HOLDING;
                 imsCallInfo.mIsConference = isConference;
+                imsCallInfo.mIsConferenceHost = isConferenceHost;
                 mCallConnections.put(callId, imsCallInfo);
                 break;
             }
             case CALL_MSG_TYPE_ACTIVE:
             {
-                logWithPhoneId("processCallInfoIndication() : CALL_MSG_TYPE_ACTIVE => callId = " + callId + "isConference = " + isConference + "isVideo = " + isVideo + "isEcc = " + isEcc);
+                logWithPhoneId("processCallInfoIndication() : CALL_MSG_TYPE_ACTIVE => "
+                               + "callId = " + callId
+                               + ", callMode = " + callMode
+                               + ", isConference = " + isConference
+                               + ", isConferenceHost = " + isConferenceHost
+                               + ", isVideo = " + isVideo
+                               + ", isEcc = " + isEcc);
 
                 imsCallInfo = mCallConnections.get(callId);
                 if (imsCallInfo == null) return;
                 imsCallInfo.mState = ImsCallInfo.State.ACTIVE;
                 imsCallInfo.mIsConference = isConference;
+                imsCallInfo.mIsConferenceHost = isConferenceHost;
                 imsCallInfo.mIsVideo = isVideo;
                 mCallConnections.put(callId, imsCallInfo);
                 break;
             }
             case CALL_MSG_TYPE_DISCONNECTED: // Clear call string when call is disconnected.
             {
-                logWithPhoneId("processCallInfoIndication() : CALL_MSG_TYPE_DISCONNECTED => callId = " + callId + "isConference = " + isConference + "isVideo = " + isVideo + "isEcc = " + isEcc);
+                logWithPhoneId("processCallInfoIndication() : CALL_MSG_TYPE_DISCONNECTED => "
+                               + "callId = " + callId
+                               + ", callMode = " + callMode
+                               + ", isConference = " + isConference
+                               + ", isConferenceHost = " + isConferenceHost
+                               + ", isVideo = " + isVideo
+                               + ", isEcc = " + isEcc);
 
                 mCallConnections.remove(callId);
                 break;
@@ -474,9 +517,9 @@ public class ImsServiceCallTracker {
         Rlog.d(LOG_TAG, "[PhoneId = " + mPhoneId + "] " + msg);
     }
 
-    private String sensitiveEncode(String msg) {
+    public static String sensitiveEncode(String msg) {
         if (!SENLOG || TELDBG) {
-            return msg;
+            return Rlog.pii(LOG_TAG, msg);
         } else {
             return "[hidden]";
         }

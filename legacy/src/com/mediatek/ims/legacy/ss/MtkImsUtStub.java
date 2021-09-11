@@ -51,6 +51,7 @@ import android.os.SystemProperties;
 
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
+import android.telephony.ims.ImsCallForwardInfo;
 import android.telephony.ims.ImsReasonInfo;
 import android.util.Log;
 
@@ -61,6 +62,7 @@ import java.util.Map;
 import com.android.ims.internal.IImsUt;
 import com.android.ims.ImsUtInterface;
 
+import com.android.internal.telephony.CallForwardInfo;
 import com.android.internal.telephony.CommandsInterface;
 
 import com.mediatek.ims.MtkImsCallForwardInfo;
@@ -104,6 +106,8 @@ public class MtkImsUtStub extends MtkImsUtImplBase {
     static final int IMS_UT_EVENT_GET_CF_TIME_SLOT = 1200;
     static final int IMS_UT_EVENT_SET_CF_TIME_SLOT = 1201;
     static final int IMS_UT_EVENT_SET_CB_WITH_PWD  = 1202;
+    static final int IMS_UT_EVENT_SETUP_XCAP_USER_AGENT_STRING = 1203;
+    static final int IMS_UT_EVENT_GET_CF_WITH_CLASS  = 1204;
 
     /**
      *
@@ -254,6 +258,33 @@ public class MtkImsUtStub extends MtkImsUtImplBase {
         return requestId;
     }
 
+    /**
+     * Retrieves the configuration of the call forward.
+     * @param condition Call Forward condition
+     * @param number Forwarded to number
+     * @param serviceClass Call Forward Service Class
+     * @return the request ID
+     */
+    public int queryCFForServiceClass(int condition, String number, int serviceClass) {
+        int requestId;
+
+        synchronized (mLock) {
+            requestId = mImsUtStub.getAndIncreaseRequestId();
+        }
+        if (DBG) {
+            Log.d(TAG, "queryCFForServiceClass(): requestId = " + requestId);
+        }
+
+        SuppSrvConfig ssConfig = SuppSrvConfig.getInstance(mContext);
+        ssConfig.update(mPhoneId);
+
+        Message msg = mHandler.obtainMessage(IMS_UT_EVENT_GET_CF_WITH_CLASS, requestId, 0, null);
+        mMMTelSSTSL.queryCallForwardStatus(mImsUtStub.getCFReasonFromCondition(condition), serviceClass,
+                number, msg, mPhoneId);
+
+        return requestId;
+    }
+
     public boolean isSupportCFT() {
         return false;
     }
@@ -374,6 +405,46 @@ public class MtkImsUtStub extends MtkImsUtImplBase {
                             } else {
                                 mImsUtStub.notifyUtConfigurationUpdateFailed(msg,
                                         new ImsReasonInfo(ImsReasonInfo.CODE_UT_NETWORK_ERROR, 0));
+                            }
+                        }
+                    }
+                    break;
+                case IMS_UT_EVENT_GET_CF_WITH_CLASS:
+                    if (null != mListener) {
+                        AsyncResult ar = (AsyncResult) msg.obj;
+
+                        if (null == ar.exception) {
+                            CallForwardInfo[] cfInfo = (CallForwardInfo[]) ar.result;
+                            ImsCallForwardInfo[] imsCfInfo = null;
+
+                            if (cfInfo != null) {
+                                imsCfInfo = new ImsCallForwardInfo[cfInfo.length];
+                                for (int i = 0; i < cfInfo.length; i++) {
+                                    if (DBG) {
+                                        Log.d(TAG, "IMS_UT_EVENT_GET_CF_WITH_CLASS: cfInfo[" + i + "] = "
+                                                + cfInfo[i]);
+                                    }
+                                    imsCfInfo[i] = mImsUtStub.getImsCallForwardInfo(cfInfo[i]);
+                                }
+                            }
+
+                            mImsUtStub.notifyUtConfigurationCallForwardQueried(msg, imsCfInfo);
+                        } else {
+                            if (ar.exception instanceof XcapException) {
+                                XcapException xcapException = (XcapException) ar.exception;
+                                mImsUtStub.notifyUtConfigurationQueryFailed(msg,
+                                    mImsUtStub.xcapExceptionToImsReasonInfo(xcapException,mPhoneId));
+                            } else if (ar.exception instanceof UnknownHostException) {
+                                if (DBG) {
+                                    Log.d(TAG, "IMS_UT_EVENT_GET_CF_WITH_CLASS: UnknownHostException.");
+                                }
+                                mImsUtStub.notifyUtConfigurationQueryFailed(msg,
+                                        new ImsReasonInfo(MtkImsReasonInfo.CODE_UT_UNKNOWN_HOST,
+                                        0));
+                            } else {
+                                mImsUtStub.notifyUtConfigurationQueryFailed(msg,
+                                        new ImsReasonInfo(ImsReasonInfo.CODE_UT_NETWORK_ERROR,
+                                                0));
                             }
                         }
                     }

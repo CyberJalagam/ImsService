@@ -40,8 +40,6 @@ import com.android.ims.ImsException;
 public interface ImsCallPlugin {
 
 
-    public int getModemMultiImsCount() throws ImsException;
-
     public boolean isSupportMims();
 
     public int setImsFwkRequest(int request);
@@ -53,12 +51,6 @@ public interface ImsCallPlugin {
     public int getUpgradeCancelFlag();
 
     public int getUpgradeCancelTimeoutFlag();
-
-    public boolean isSpecialEmergencyNumber(int subId, String dialString);
-
-    public void setSpecificEccCategory(int eccCat);
-
-    public int getServiceCategoryFromEcc(String number);
 
     public int getMainCapabilityPhoneId();
 

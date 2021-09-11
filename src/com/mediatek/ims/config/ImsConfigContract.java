@@ -178,6 +178,7 @@ public class ImsConfigContract {
     private static String[] sMtkConfigNames = new String[] {
             "EPDG_ADDRESS",
             "PUBLISH_ERROR_RETRY_TIMER",
+            "VOICE_OVER_WIFI_MDN",
             "VOICE_DOMAIN_PREFERENCE"
     };
 
@@ -367,10 +368,12 @@ public class ImsConfigContract {
         public static boolean isValidFeatureId(int featureId) {
             boolean valid = true;
             switch(featureId) {
+                case ImsConfig.FeatureConstants.FEATURE_TYPE_VOICE_OVER_LTE:
+                case ImsConfig.FeatureConstants.FEATURE_TYPE_VIDEO_OVER_LTE:
                 case ImsConfig.FeatureConstants.FEATURE_TYPE_VOICE_OVER_WIFI:
                 case ImsConfig.FeatureConstants.FEATURE_TYPE_VIDEO_OVER_WIFI:
-                case ImsConfig.FeatureConstants.FEATURE_TYPE_VIDEO_OVER_LTE:
-                case ImsConfig.FeatureConstants.FEATURE_TYPE_VOICE_OVER_LTE:
+                case ImsConfig.FeatureConstants.FEATURE_TYPE_UT_OVER_LTE:
+                case ImsConfig.FeatureConstants.FEATURE_TYPE_UT_OVER_WIFI:
                     break;
                 case ImsConfig.FeatureConstants.FEATURE_TYPE_UNKNOWN:
                 default:

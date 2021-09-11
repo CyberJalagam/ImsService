@@ -1,12 +1,13 @@
 package com.mediatek.ims.internal;
 
 import android.content.Context;
-import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.Build;
 import android.provider.ContactsContract.CommonDataKinds.Phone;
 import android.util.Log;
+import android.text.TextUtils;
 
 import com.android.ims.ImsManager;
 
@@ -14,6 +15,8 @@ import com.mediatek.ims.ImsAdapter.VaEvent;
 import com.mediatek.ims.ImsAdapter.VaSocketIO;
 import com.mediatek.ims.ImsConstants;
 import com.mediatek.ims.ImsEventDispatcher;
+import com.mediatek.ims.ImsService;
+import com.mediatek.ims.ImsUtImpl;
 import com.mediatek.ims.MtkImsService;
 import com.mediatek.ims.VaConstants;
 
@@ -27,6 +30,7 @@ import java.io.UnsupportedEncodingException;
 public class ImsSimservsDispatcher implements ImsEventDispatcher.VaEventDispatcher {
     private static final String TAG = "ImsSimservsDispatcher";
     private static final boolean DUMP_TRANSACTION = true;
+    private static final boolean SENLOG = TextUtils.equals(Build.TYPE, "user");
 
     private static final int IMC_MAX_XUI_LEN = 512;
 
@@ -145,14 +149,14 @@ public class ImsSimservsDispatcher implements ImsEventDispatcher.VaEventDispatch
             e.printStackTrace();
         }
 
-        log("handleXuiUpdate xui=" + xui);
+        log("handleXuiUpdate xui=" + ImsUtImpl.encryptString(xui));
+
         ImsXuiManager xuim = ImsXuiManager.getInstance();
         xuim.setXui(phoneId, xui);
-        // Broadcast XUI update
-        if (mContext != null) {
-            Intent intent = new Intent(ImsConstants.SELF_IDENTIFY_UPDATE);
-            intent.putExtra(ImsManager.EXTRA_PHONE_ID, phoneId);
-            mContext.sendStickyBroadcast(intent);
+
+        ImsService imsService = ImsService.getInstance(mContext);
+        if (imsService != null) {
+            imsService.updateSelfIdentity(phoneId);
         }
     }
 

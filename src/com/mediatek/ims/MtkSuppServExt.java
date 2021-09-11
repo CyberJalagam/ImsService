@@ -48,6 +48,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
+import android.os.PersistableBundle;
 import android.os.Registrant;
 import android.os.RegistrantList;
 import android.os.SystemProperties;
@@ -56,7 +57,9 @@ import android.telephony.ims.stub.ImsRegistrationImplBase;
 import android.telephony.ServiceState;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
+import android.telephony.CarrierConfigManager;
 import android.telephony.TelephonyManager;
+import android.telephony.PhoneStateListener;
 import android.telephony.Rlog;
 import android.text.TextUtils;
 
@@ -77,6 +80,8 @@ import com.android.internal.telephony.uicc.UiccController;
 
 import com.mediatek.ims.OperatorUtils;
 import com.mediatek.ims.OperatorUtils.OPID;
+import com.mediatek.ims.plugin.ExtensionFactory;
+import com.mediatek.ims.plugin.ImsSSOemPlugin;
 import com.mediatek.ims.ril.ImsCommandsInterface.RadioState;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -99,8 +104,6 @@ public class MtkSuppServExt extends Handler {
     private static final String SYS_PROP_QUERY_VOLTE_SUB =
             "persist.vendor.suppserv.query_volte_sub";
 
-    private static final String SYS_PROP_SUB_ID_KEY = "persist.vendor.suppserv.presubid";
-
     private Context mContext;
 
     private int mPhoneId = 1;
@@ -115,6 +118,8 @@ public class MtkSuppServExt extends Handler {
 
     private SuppServTaskDriven mSuppServTaskDriven = null;
 
+    private PhoneStateListener mPhoneStateListener;
+
     private boolean mSimLoaded = false;
 
     private boolean mQueryXcapDone = false;
@@ -123,6 +128,8 @@ public class MtkSuppServExt extends Handler {
 
     private boolean mSimIsChangedAfterBoot = false;
 
+    private ImsSSOemPlugin mPluginBase;
+
     private static final int TASK_QUERY_XCAP = 0;
     private static final int TASK_RESET_AND_QUERY_XCAP = 1;
     private static final int TASK_SET_VOLTE_SUBSCRIPTION_DIRECLY = 2;
@@ -130,28 +137,14 @@ public class MtkSuppServExt extends Handler {
 
     private static final int EVENT_IMS_UT_EVENT_QUERY_XCAP = 0;
     private static final int EVENT_IMS_REGISTRATION_INFO = 1;
-    private static final int EVENT_RESET_SS = 2;
-    private static final int EVENT_RADIO_NOT_AVAILABLE = 3;
-    private static final int EVENT_RADIO_OFF = 4;
-    private static final int EVENT_RADIO_ON = 5;
-    private static final int EVENT_ON_VOLTE_SUBSCRIPTION = 6;
-
-    private static final int VOLTE_SERVICE_UNKNOWN = 0;
-    private static final int VOLTE_SERVICE_ENABLE  = 1;
-    private static final int VOLTE_SERVICE_DISABLE = 2;
+    private static final int EVENT_RADIO_NOT_AVAILABLE = 2;
+    private static final int EVENT_RADIO_OFF = 3;
+    private static final int EVENT_RADIO_ON = 4;
+    private static final int EVENT_ON_VOLTE_SUBSCRIPTION = 5;
 
     private static final int UT_CAPABILITY_UNKNOWN = 0;
     private static final int UT_CAPABILITY_ENABLE  = 1;
     private static final int UT_CAPABILITY_DISABLE = 2;
-
-    // 0: unknown
-    // 1: volte
-    // 2: non volte
-    private static final String SETTING_VOLTE_SERVICE_SUBSCRIPTION = "volte_subscription";
-
-    // 0: unknown
-    // 1: Ut enabled
-    // 2: Ut disabled
     private static final String SETTING_UT_CAPABILITY = "ut_capability";
 
     private static final String ICCID_KEY = "iccid_key";
@@ -381,12 +374,25 @@ public class MtkSuppServExt extends Handler {
             return false;
         }
 
-        //check op01 and op09 mcc mnc
-        if (isOp(OPID.OP01) || isOp(OPID.OP09)) {
-            return true;
+        // Check carrier config to determine if need to do internal XCAP query for this operator
+        // If the carrier config is not loaded, return false by default
+        CarrierConfigManager configManager = (CarrierConfigManager) mContext.getSystemService(
+                Context.CARRIER_CONFIG_SERVICE);
+        int subId = getSubIdUsingPhoneId(mPhoneId);
+
+        PersistableBundle b = null;
+        if (configManager != null) {
+            b = configManager.getConfigForSubId(subId);
         }
 
-        return false;
+        if (b != null) {
+            logd("checkNeedQueryXcap: carrier config is ready, config = " + b.getBoolean(
+                    mPluginBase.getXcapQueryCarrierConfigKey(), false));
+            return b.getBoolean(mPluginBase.getXcapQueryCarrierConfigKey(), false);
+        } else {
+            logd("checkNeedQueryXcap: carrier config not ready, return false");
+            return false;
+        }
     }
 
     private boolean isOp(OPID id) {
@@ -407,6 +413,8 @@ public class MtkSuppServExt extends Handler {
 
         mImsManager = ImsManager.getInstance(context, phoneId);
 
+        mPluginBase = ExtensionFactory.makeOemPluginFactory(mContext).makeImsSSOemPlugin(mContext);
+
         checkImsInService();
 
         registerBroadcastReceiver();
@@ -418,8 +426,28 @@ public class MtkSuppServExt extends Handler {
     private void checkImsInService() {
         if (mImsService.getImsServiceState(mPhoneId) == ServiceState.STATE_IN_SERVICE) {
             mQueryXcapDone = true;
-            setVolteSubscriptionToSettings(VOLTE_SERVICE_ENABLE);
+            setVolteSubscriptionToSettings(mPluginBase.getVolteSubEnableConstant());
         }
+    }
+
+    private void initPhoneStateListener(Looper looper) {
+        TelephonyManager tm = (TelephonyManager) mContext
+                .getSystemService(Context.TELEPHONY_SERVICE);
+        mPhoneStateListener = new PhoneStateListener(looper) {
+            @Override
+            public void onServiceStateChanged(ServiceState serviceState) {
+                switch(serviceState.getDataRegState()) {
+                    case ServiceState.STATE_IN_SERVICE:
+                        Task task = new Task(TASK_QUERY_XCAP, false, "Data reg state in service.");
+                        mSuppServTaskDriven.appendTask(task);
+                        break;
+                    default:
+                        break;
+                }
+            }
+        };
+
+        tm.listen(mPhoneStateListener, PhoneStateListener.LISTEN_SERVICE_STATE);
     }
 
     private void registerBroadcastReceiver() {
@@ -427,8 +455,7 @@ public class MtkSuppServExt extends Handler {
         filter.addAction(TelephonyIntents.ACTION_SUBINFO_RECORD_UPDATED);
         filter.addAction(TelephonyIntents.ACTION_SET_RADIO_CAPABILITY_DONE);
         filter.addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED);
-
-        // filter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
+        filter.addAction(CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED);
         filter.addAction(TelephonyManager.ACTION_SIM_APPLICATION_STATE_CHANGED);
         mContext.registerReceiver(mBroadcastReceiver, filter);
     }
@@ -439,16 +466,6 @@ public class MtkSuppServExt extends Handler {
         mImsRILAdapter.registerForOff(this, EVENT_RADIO_OFF, null);
         mImsRILAdapter.registerForOn(this, EVENT_RADIO_ON, null);
         mImsRILAdapter.registerForVolteSubscription(this, EVENT_ON_VOLTE_SUBSCRIPTION, null);
-        // mImsService.addRegistrationListener(mPhoneId,
-        //         ImsServiceClass.MMTEL, mImsRegistrationImpl.getRegistrationListener());
-        // if (mImsManager != null) { // Not sure it need handle if ImsManager == null
-        //     try {
-        //         mImsManager.addRegistrationListener(
-        //                 ImsServiceClass.MMTEL, mImsConnectionStateListener);
-        //     } catch (ImsException ie) {
-        //         logd("ImsManager addRegistrationListener failed, " + ie.toString());
-        //     }
-        // }
     }
 
 
@@ -458,13 +475,6 @@ public class MtkSuppServExt extends Handler {
         mImsRILAdapter.unregisterForOff(this);
         mImsRILAdapter.unregisterForOn(this);
         mImsRILAdapter.unregisterForVolteSubscription(this);
-        // if (mImsManager != null) {
-        //     try {
-        //         mImsManager.removeRegistrationListener(mImsConnectionStateListener);
-        //     } catch (ImsException ie) {
-        //         logd("ImsManager removeRegistrationListener failed, " + ie.toString());
-        //     }
-        // }
     }
 
     private void unRegisterBroadReceiver() {
@@ -475,13 +485,15 @@ public class MtkSuppServExt extends Handler {
         unRegisterBroadReceiver();
     }
 
-    // public void init(Looper looper){
-    //     mSuppServTaskDriven = new SuppServTaskDriven(looper);
-    // }
-
     private boolean checkInitCriteria(StringBuilder criteriaFailReason) {
         if (!checkNeedQueryXcap()) {
-            criteriaFailReason.append("No need to support for this operator, ");
+            criteriaFailReason.append(
+                    "No need to support for this operator OR carrier config not ready, ");
+            return false;
+        }
+
+        if (!isDataEnabled()) {
+            criteriaFailReason.append("Data is not enabled, ");
             return false;
         }
 
@@ -497,6 +509,11 @@ public class MtkSuppServExt extends Handler {
 
         if (!getSimLoaded()) {
             criteriaFailReason.append("Sim not loaded, ");
+            return false;
+        }
+
+        if (!isDataRegStateInService()) {
+            criteriaFailReason.append("Data reg state is not in service, ");
             return false;
         }
 
@@ -564,6 +581,16 @@ public class MtkSuppServExt extends Handler {
         return tm.getDataEnabled(subId);
     }
 
+    private boolean isDataRegStateInService() {
+        TelephonyManager tm = (TelephonyManager) mContext
+                .getSystemService(Context.TELEPHONY_SERVICE);
+
+        int subId = getSubIdUsingPhoneId(mPhoneId);
+        ServiceState state = tm.getServiceStateForSubscriber(subId);
+
+        return state.getDataRegState() == ServiceState.STATE_IN_SERVICE;
+    }
+
     // Not support legacy MD currently.
     private void startXcapQuery() {
         if (ImsCommonUtil.supportMdAutoSetupIms()) {
@@ -579,7 +606,12 @@ public class MtkSuppServExt extends Handler {
         public void onReceive(Context context, Intent intent) {
             final String action = intent.getAction();
             if (action.equals(TelephonyIntents.ACTION_SUBINFO_RECORD_UPDATED)) {
-                handleSubinfoUpdate();
+                post(new Runnable() {
+                    @Override
+                    public void run() {
+                        handleSubinfoUpdate();
+                    }
+                });
             } else if (action.equals(TelephonyIntents.ACTION_SET_RADIO_CAPABILITY_DONE)) {
                 mQueryXcapDone = false;
                 // startHandleCFUQueryProcess(false, "Radio capability done");
@@ -613,6 +645,23 @@ public class MtkSuppServExt extends Handler {
                 setSimLoaded(true);
                 Task task = new Task(TASK_QUERY_XCAP, false, "SIM loaded.");
                 mSuppServTaskDriven.appendTask(task);
+                if (isOp(OPID.OP09) &&
+                        (SystemProperties.getInt("persist.vendor.mtk_ct_volte_support", 0) != 0)) {
+                    mImsService.notifyUtCapabilityChange(mPhoneId);
+                }
+            } else if (action.equals(CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED)) {
+                int subId = intent.getIntExtra(PhoneConstants.SUBSCRIPTION_KEY,
+                        SubscriptionManager.INVALID_SUBSCRIPTION_ID);
+
+                if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+                    logd("ACTION_CARRIER_CONFIG_CHANGED: not loaded, subId: " + subId);
+                } else if (subId != getSubIdUsingPhoneId(mPhoneId)) {
+                    logd("ACTION_CARRIER_CONFIG_CHANGED: not for this phone, subId: " + subId);
+                } else {
+                    logd("ACTION_CARRIER_CONFIG_CHANGED: loaded, subId: " + subId);
+                    Task task = new Task(TASK_QUERY_XCAP, false, "Carrier config changed");
+                    mSuppServTaskDriven.appendTask(task);
+                }
             }
         }
     };
@@ -647,44 +696,15 @@ public class MtkSuppServExt extends Handler {
             return;
         }
 
-        // If SIM is changed, then need to reset SS related configuration
-        handleSuppServIfSimChanged();
-
         // If we found reboot occurs or SIM is changed, then trigger a XCAP query
         handleXcapQueryIfSimChangedOrBootup(iccid);
-    }
-
-
-    private void handleSuppServIfSimChanged() {
-        // String oldIccId = getIccIdFromSp();
-        int oldSubId = getPreviousSubId();
-        int subId = getSubIdUsingPhoneId(mPhoneId);
-
-        logw("handleSuppServIfSimChanged mySubId "
-                + getSubIdUsingPhoneId(mPhoneId) + " old subid : " + oldSubId);
-
-        if (subId < 0) {
-            // logd("handleSuppServIfSimChanged: sub is not ready.");
-            return;
-        }
-
-        if (oldSubId == subId) {
-            // logd("handleSuppServIfSimChanged: SIM is not changed. (sub)");
-            return;
-        }
-
-        // saveIccidtoSp(iccid);
-        saveSubId(subId);
-
-        // Reset persistent SS configuration
-        resetSuppServ();
     }
 
     private void handleXcapQueryIfSimChangedOrBootup(String iccid) {
         logw("handleXcapQueryIfSimChangedOrBootup mySubId "
                 + getSubIdUsingPhoneId(mPhoneId) + " old iccid : "
-                + Rlog.pii(SDBG, mOldIccId) + " new iccid : "
-                + Rlog.pii(SDBG, iccid));
+                + Rlog.pii(LOG_TAG, mOldIccId) + " new iccid : "
+                + Rlog.pii(LOG_TAG, iccid));
 
         // Becuase mOldIccId is not persistent, if the current iccid not equal to mOldIccId
         // it means a boot-up occurs or SIM is changed
@@ -702,7 +722,7 @@ public class MtkSuppServExt extends Handler {
         mSuppServTaskDriven.clearPendingTask();
 
         // Reset status in DB
-        setVolteSubscriptionDirectly(VOLTE_SERVICE_UNKNOWN, "Reset VoLTE subscription status");
+        setVolteSubscriptionDirectly(mPluginBase.getVolteSubUnknownConstant(), "Reset VoLTE subscription status");
         setUtCapabilityDirectly(UT_CAPABILITY_UNKNOWN, "Reset Ut capabatility status");
         Task task = new Task(TASK_RESET_AND_QUERY_XCAP, false, "Sim Changed or Bootup");
         mSuppServTaskDriven.appendTask(task);
@@ -724,29 +744,6 @@ public class MtkSuppServExt extends Handler {
         AsyncResult ar = (AsyncResult) msg.obj;
         switch (msg.what) {
             case EVENT_IMS_UT_EVENT_QUERY_XCAP: {
-                int imsServiceState = mImsService.getImsServiceState(mPhoneId);
-                logd("imsServiceState: " + imsServiceState);
-                if (null == ar.exception ||
-                        mImsService.getImsServiceState(mPhoneId) ==
-                        ServiceState.STATE_IN_SERVICE) {
-                    logd("EVENT_IMS_UT_EVENT_QUERY_XCAP, query successfully");
-                    // We rely on RIL_UNSOL_ON_VOLTE_SUBSCRIPTION URC to update DB
-                    // setVolteSubscriptionToSettings(VOLTE_SERVICE_ENABLE);
-                } else {
-                    if (ar.exception instanceof CommandException) {
-                        int volteService =
-                                commandExceptionToVolteServiceStatus(
-                                (CommandException)(ar.exception));
-                        logd("EVENT_IMS_UT_EVENT_QUERY_XCAP, get CommandException");
-                        // We rely on RIL_UNSOL_ON_VOLTE_SUBSCRIPTION URC to update DB
-                        // setVolteSubscriptionToSettings(volteService);
-                    } else {
-                        logd("EVENT_IMS_UT_EVENT_QUERY_XCAP, get ImsException");
-                        // We rely on RIL_UNSOL_ON_VOLTE_SUBSCRIPTION URC to update DB
-                        // setVolteSubscriptionToSettings(VOLTE_SERVICE_DISABLE);
-                    }
-                }
-
                 mQueryXcapDone = true;
                 taskDone();
                 break;
@@ -756,13 +753,8 @@ public class MtkSuppServExt extends Handler {
                 int status = ((int[]) ar.result)[0];
                 if (DBG) logd("EVENT_IMS_REGISTRATION_INFO: " + status);
                 if (status == 1) {  // In service
-                    setVolteSubscriptionDirectly(VOLTE_SERVICE_ENABLE, "Ims registered.");
+                    setVolteSubscriptionDirectly(mPluginBase.getVolteSubEnableConstant(), "Ims registered.");
                 }
-                break;
-            }
-
-            case EVENT_RESET_SS: {
-                logd("EVENT_RESET_SS Done");
                 break;
             }
 
@@ -788,12 +780,12 @@ public class MtkSuppServExt extends Handler {
                 int volteSubstatus = ((int[]) ar.result)[0];
                 logd(" EVENT_ON_VOLTE_SUBSCRIPTION, volteSubstatus = " + volteSubstatus);
                 if (volteSubstatus == 1) {
-                    setVolteSubscriptionDirectly(VOLTE_SERVICE_ENABLE,
+                    setVolteSubscriptionDirectly(mPluginBase.getVolteSubEnableConstant(),
                             "Receive VoLTE Subscription URC");
                     setUtCapabilityDirectly(UT_CAPABILITY_ENABLE,
                             "Receive VoLTE Subscription URC");
                 } else if (volteSubstatus == 2) {
-                    setVolteSubscriptionDirectly(VOLTE_SERVICE_DISABLE,
+                    setVolteSubscriptionDirectly(mPluginBase.getVolteSubDisableConstant(),
                             "Receive VoLTE Subscription URC");
                     setUtCapabilityDirectly(UT_CAPABILITY_DISABLE,
                             "Receive VoLTE Subscription URC");
@@ -810,20 +802,20 @@ public class MtkSuppServExt extends Handler {
 
     private int commandExceptionToVolteServiceStatus(CommandException commandException) {
         CommandException.Error err = null;
-        int status = VOLTE_SERVICE_UNKNOWN;
+        int status = mPluginBase.getVolteSubUnknownConstant();
 
         err = commandException.getCommandError();
 
         logd("commandException: " + err);
 
         if (err == CommandException.Error.OEM_ERROR_2) {
-            status = VOLTE_SERVICE_DISABLE;
+            status = mPluginBase.getVolteSubDisableConstant();
         } else if (err == CommandException.Error.OEM_ERROR_4) {
-            status = VOLTE_SERVICE_ENABLE;
-        } else if (err == CommandException.Error.OEM_ERROR_1) {
-            status = VOLTE_SERVICE_ENABLE;
+            status = mPluginBase.getVolteSubEnableConstant();
+        } else if (err == CommandException.Error.OEM_ERROR_25) {
+            status = mPluginBase.getVolteSubEnableConstant();
         } else if (err == CommandException.Error.REQUEST_NOT_SUPPORTED) {
-            status = VOLTE_SERVICE_DISABLE;
+            status = mPluginBase.getVolteSubDisableConstant();
         }
 
         return status;
@@ -842,7 +834,7 @@ public class MtkSuppServExt extends Handler {
         //     return false;
         // }
 
-        // if (status == VOLTE_SERVICE_ENABLE) {
+        // if (status == mPluginBase.getVolteSubEnableConstant()) {
         //     bStatus = true;
         // }
 
@@ -852,8 +844,8 @@ public class MtkSuppServExt extends Handler {
     private int getVolteSubscriptionFromSettings() {
         int status = android.provider.Settings.Global.getInt(
                 mContext.getContentResolver(),
-                SETTING_VOLTE_SERVICE_SUBSCRIPTION + mPhoneId,
-                VOLTE_SERVICE_UNKNOWN);
+                mPluginBase.getVolteSubscriptionKey() + mPhoneId,
+                mPluginBase.getVolteSubUnknownConstant());
         return status;
     }
 
@@ -861,7 +853,7 @@ public class MtkSuppServExt extends Handler {
         logd("setVolteSubscriptionToSettings: " + status);
         android.provider.Settings.Global.putInt(
                 mContext.getContentResolver(),
-                SETTING_VOLTE_SERVICE_SUBSCRIPTION + mPhoneId,
+                mPluginBase.getVolteSubscriptionKey() + mPhoneId,
                 status);
     }
 
@@ -892,37 +884,6 @@ public class MtkSuppServExt extends Handler {
         }
     }
 
-    private void saveSubId(int subId) {
-        TelephonyManager.setTelephonyProperty(mPhoneId,
-                SYS_PROP_SUB_ID_KEY, Integer.toString(subId));
-    }
-
-    private int getPreviousSubId() {
-        String subId = TelephonyManager.getTelephonyProperty(mPhoneId, SYS_PROP_SUB_ID_KEY, "-1");
-        // logd("getPreviousSubId: " + subId);
-
-        if (subId.isEmpty()) {
-            return -1;
-        }
-
-        try {
-            return Integer.parseInt(subId);
-        } catch (NumberFormatException e) {
-            return -1;
-        }
-    }
-
-    private void saveIccidtoSp(String iccid) {
-        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(mContext);
-        SharedPreferences.Editor editor = sp.edit();
-        editor.putString(ICCID_KEY + mPhoneId, iccid);
-
-        // Commit and log the result.
-        if (!editor.commit()) {
-            loge("Failed to commit iccid preference");
-        }
-    }
-
     private String getIccIdFromSp() {
         SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(mContext);
         String iccid = sp.getString(ICCID_KEY + mPhoneId, "");
@@ -930,51 +891,12 @@ public class MtkSuppServExt extends Handler {
         return iccid;
     }
 
-    private void resetSuppServ() {
-        // Reset the status in RILD (e.g. property of terminal based call waiting)
-        if (ImsCommonUtil.supportMdAutoSetupIms()) {
-            Message msg = obtainMessage(EVENT_RESET_SS, null);
-            mImsRILAdapter.resetSuppServ(msg);
-        }
-    }
-
-    // private ImsConnectionStateListener mImsConnectionStateListener =
-    //         new ImsConnectionStateListener() {
-    //     @Override
-    //     public void onImsConnected(int imsRadioTech) {   // STATE_IN_SERVICE
-    //         if (DBG) logd("onImsConnected imsRadioTech=" + imsRadioTech);
-    //         setVolteSubscriptionDirectly(VOLTE_SERVICE_ENABLE, "IMS registered.");
-    //     }
-
-    //     @Override
-    //     public void onImsDisconnected(ImsReasonInfo imsReasonInfo) {  // STATE_OUT_OF_SERVICE
-    //         // Do nothing
-    //     }
-
-    //     @Override
-    //     public void onImsProgressing(int imsRadioTech) {  // STATE_OUT_OF_SERVICE
-    //         // Do nothing
-    //     }
-
-    //     @Override
-    //     public void onImsResumed() {   // STATE_IN_SERVICE
-    //         // Do nothing
-    //     }
-
-    //     @Override
-    //     public void onImsSuspended() {  // STATE_OUT_OF_SERVICE
-    //         // Do nothing
-    //     }
-    // };
-
     private String toEventString(int event) {
         switch (event) {
             case EVENT_IMS_UT_EVENT_QUERY_XCAP:
                 return "EVENT_IMS_UT_EVENT_QUERY_XCAP";
             case EVENT_IMS_REGISTRATION_INFO:
                 return "EVENT_IMS_REGISTRATION_INFO";
-            case EVENT_RESET_SS:
-                return "EVENT_RESET_SS";
             case EVENT_RADIO_NOT_AVAILABLE:
                 return "EVENT_RADIO_NOT_AVAILABLE";
             case EVENT_RADIO_ON:

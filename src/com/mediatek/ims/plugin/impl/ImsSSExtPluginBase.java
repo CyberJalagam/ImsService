@@ -33,41 +33,62 @@
  * applicable license agreements with MediaTek Inc.
  */
 
-package com.mediatek.ims.ext;
+package com.mediatek.ims.plugin.impl;
 
+import android.util.Log;
 import android.content.Context;
-import android.os.AsyncResult;
-import android.os.Bundle;
-import android.os.Message;
+import android.telephony.ims.ImsCallForwardInfo;
 import android.telephony.ims.ImsReasonInfo;
 
-import com.mediatek.ims.MtkImsCallSessionProxy;
-import com.mediatek.ims.internal.IMtkImsCallSession;
-import com.mediatek.ims.SipMessage;
+import com.android.internal.telephony.CallForwardInfo;
+import com.android.internal.telephony.CommandException;
 
-public class OpImsCallSessionProxyBase implements OpImsCallSessionProxy {
-    public void broadcastForNotRingingMtIfRequired(boolean sipSessionProgress, int state, int
-            serviceId, String callNumber, Context context) {
+import com.mediatek.ims.ImsUtImpl;
+import com.mediatek.ims.plugin.ImsSSExtPlugin;
+
+import static com.android.internal.telephony.CommandsInterface.SERVICE_CLASS_VOICE;
+
+public class ImsSSExtPluginBase implements ImsSSExtPlugin {
+
+    private static final String TAG = "ImsSSExtPluginBase";
+
+    private Context mContext;
+
+    public ImsSSExtPluginBase(Context context) {
+        mContext = context;
     }
 
-    public void deviceSwitch(
-            Object imsRILAdapter, String number, String deviceId, Message response) {}
-
-    public void cancelDeviceSwitch(Object imsRILAdapter) {}
-
-    public void handleDeviceSwitchResponse(
-            IMtkImsCallSession imsCallSession, AsyncResult result) {}
-
-    public boolean handleDeviceSwitchResult(String callId,
-            IMtkImsCallSession imsCallSession, AsyncResult result) { return false; }
-
-    public boolean isValidVtDialString(String number) { return true; }
-    public String normalizeVtDialString(String number) { return number; }
-    public boolean isDeviceSwitching() { return false; }
-    public ImsReasonInfo getImsReasonInfo(SipMessage sipMsg) { return null; }
-    public boolean handleCallStartFailed(IMtkImsCallSession imsCallSession,
-            Object imsRILAdapter, boolean hasHoldingCall) { return false; }
-    public boolean handleHangup() { return false; }
-
-    public void sendCallEventWithRat(Bundle extras) {}
+    @Override
+    public ImsCallForwardInfo[] getImsCallForwardInfo(CallForwardInfo[] info) {
+        ImsCallForwardInfo[] imsCfInfo = new ImsCallForwardInfo[1];
+        if (info != null) {
+            for (int i = 0; i < info.length; i++) {
+                Log.d(TAG, "getImsCallForwardInfo: info[" + i + "] = " + info[i]);
+                // AOSP ImsPhone only accepts VOICE class CF info
+                if (info[i].serviceClass == SERVICE_CLASS_VOICE) {
+                    imsCfInfo[0] = new ImsCallForwardInfo();
+                    imsCfInfo[0].mCondition = ImsUtImpl.getConditionFromCFReason(info[i].reason);
+                    imsCfInfo[0].mStatus = info[i].status;
+                    imsCfInfo[0].mServiceClass = info[i].serviceClass;
+                    imsCfInfo[0].mToA = info[i].toa;
+                    imsCfInfo[0].mNumber = info[i].number;
+                    imsCfInfo[0].mTimeSeconds = info[i].timeSeconds;
+                    return imsCfInfo;
+                }
+            }
+            /**
+             * We need to make a default voice class call forwarding info when modem didn't return one.
+             * Modem will only return the enable part.
+             * e.x AT< +CCFC: 1, 16,"phone number", 145
+             */
+            imsCfInfo[0] = new ImsCallForwardInfo();
+            imsCfInfo[0].mCondition = ImsUtImpl.getConditionFromCFReason(info[0].reason);
+            imsCfInfo[0].mStatus = 0;
+            imsCfInfo[0].mServiceClass = SERVICE_CLASS_VOICE;
+            imsCfInfo[0].mToA = 0;
+            imsCfInfo[0].mNumber = "";
+            imsCfInfo[0].mTimeSeconds = 0;
+        }
+        return imsCfInfo;
+    }
 }

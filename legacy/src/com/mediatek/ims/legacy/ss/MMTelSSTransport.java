@@ -44,8 +44,10 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 
+import android.net.ConnectivityManager;
 import android.net.Network;
 import android.os.AsyncResult;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -80,6 +82,7 @@ import java.util.List;
 import com.mediatek.gba.GbaHttpUrlCredential;
 import com.mediatek.ims.OperatorUtils.OPID;
 import com.mediatek.internal.telephony.MtkCallForwardInfo;
+import com.mediatek.internal.telephony.MtkSuppServHelper;
 import com.mediatek.simservs.client.SimServs;
 import com.mediatek.simservs.client.CommunicationDiversion;
 import com.mediatek.simservs.client.CommunicationWaiting;
@@ -90,7 +93,7 @@ import com.mediatek.simservs.client.OriginatingIdentityPresentationRestriction;
 import com.mediatek.simservs.client.TerminatingIdentityPresentation;
 import com.mediatek.simservs.client.TerminatingIdentityPresentationRestriction;
 
-import com.mediatek.ims.common.ImsRILConstants;
+import com.mediatek.ims.ril.ImsRILConstants;
 import com.mediatek.ims.OperatorUtils;
 import com.mediatek.ims.SuppSrvConfig;
 
@@ -255,6 +258,7 @@ class MMTelSSRequest {
 public final class MMTelSSTransport {
     private static final String LOG_TAG = "MMTelSS";
     static final boolean DBG = true;
+    private static final boolean SENLOG = TextUtils.equals(Build.TYPE, "user");
 
     // Singleton instance
     private static final MMTelSSTransport INSTANCE = new MMTelSSTransport();
@@ -336,6 +340,7 @@ public final class MMTelSSTransport {
     private SimservType[] mCacheSimserv = new SimservType[CACHE_IDX_TOTAL];
     private int[] mCachePhoneId = new int[CACHE_IDX_TOTAL];
     private long[] mLastQueried = new long[CACHE_IDX_TOTAL];
+    private final Object mWaitLock = new Object();
 
     private static SuppSrvConfig mSSConfig = null;
 
@@ -377,6 +382,9 @@ public final class MMTelSSTransport {
     private static final int MODIFIED_SERVICE_AUDIO = (1 << 0);
     private static final int MODIFIED_SERVICE_VIDEO = (1 << 1);
     private static final int INVALID_PHONE_ID = -1;
+
+    private static final int WAIT_GBA_TIME_OUT = 1000;
+
     private BroadcastReceiver mIntentReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -392,6 +400,9 @@ public final class MMTelSSTransport {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
             Rlog.d(LOG_TAG, "GbaService onServiceConnected");
+            synchronized (mWaitLock) {
+                mWaitLock.notifyAll();
+            }
         }
 
         @Override
@@ -452,15 +463,31 @@ public final class MMTelSSTransport {
         mNetwork = null;
         if (mXcapMobileDataNetworkManager != null) {
             mNetwork = mXcapMobileDataNetworkManager.acquireNetwork(phoneId);
+
+            ConnectivityManager connMgr =
+                    (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (connMgr != null) {
+                Rlog.d(LOG_TAG, "Bind process to xcap network");
+                connMgr.bindProcessToNetwork(mNetwork);
+            }
         }
     }
 
     private void startGbaService(Context context) {
         Rlog.d(LOG_TAG, "start gba service");
-        Intent gbaIntent = new Intent("com.mediatek.START_GBA");
-        gbaIntent.setPackage("com.mediatek.gba");
-        mContext.bindService(gbaIntent, mGbaConnection, Context.BIND_AUTO_CREATE);
-        Rlog.d(LOG_TAG, "Is gba service running = " + isGbaServiceRunning(context));
+        synchronized (mWaitLock) {
+            ComponentName gbaService =
+                new ComponentName("com.mediatek.gba", "com.mediatek.gba.GbaService");
+            Intent gbaIntent = new Intent();
+            gbaIntent.setComponent(gbaService);
+            mContext.bindService(gbaIntent, mGbaConnection, Context.BIND_AUTO_CREATE);
+            Rlog.d(LOG_TAG, "Is gba service running = " + isGbaServiceRunning(context));
+            try {
+                mWaitLock.wait(WAIT_GBA_TIME_OUT);
+            } catch (InterruptedException e) {
+                Rlog.d(LOG_TAG, "wait request interrupted");
+            }
+        }
     }
 
     private boolean isGbaServiceRunning(Context context) {
@@ -545,7 +572,8 @@ public final class MMTelSSTransport {
     private void onReceiveSimStateChangedIntent(Intent intent) {
         String simStatus = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
         int phoneId = intent.getIntExtra(PhoneConstants.PHONE_KEY, INVALID_PHONE_ID);
-        if (IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(simStatus)) {
+        if (IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(simStatus) ||
+                intent.getAction().equals(Intent.ACTION_AIRPLANE_MODE_CHANGED)) {
             Rlog.d(LOG_TAG, "onReceiveSimStateChangedIntent: simStatus=" + simStatus +
                    "phoneId=" + phoneId);
             // clear cache
@@ -699,6 +727,7 @@ public final class MMTelSSTransport {
                             + ", enable=" + response[0]);
                 }
             } catch (UnknownHostException unknownHostException) {
+                unknownHostException.printStackTrace();
                 exceptionReport = unknownHostException;
             } catch (XcapException xcapException) {
                 xcapException.printStackTrace();
@@ -1129,7 +1158,7 @@ public final class MMTelSSTransport {
                                 + ", reason=" + reasonCFToString(reason)
                                 + ", service=" + serviceClassToString(serviceClass)
                                 + ", status=" + (enable == 1 ? "Enable" : "Disable")
-                                + ", number=" + number
+                                + ", number=" + MtkSuppServHelper.encryptString(number)
                                 + ", time=" + cfInfo.timeSeconds
                                 + ", timeSlot=" + timeSlot);
                     }
@@ -1318,12 +1347,20 @@ public final class MMTelSSTransport {
                     MtkCallForwardInfo cfInfo = iterator.next();
                     if (firstCfInfo == null && cfInfo.reason == reason) {
                         firstCfInfo = cfInfo;
+                        Rlog.d(LOG_TAG, "firstCfInfo() reason=" + cfInfo.reason
+                                + ", service=" + serviceClassToString(cfInfo.serviceClass)
+                                + ", number=" + MtkSuppServHelper.encryptString(cfInfo.number));
                     } else if (firstCfInfo != null && firstCfInfo.reason == cfInfo.reason
                             && firstCfInfo.serviceClass == cfInfo.serviceClass) {
+                        iterator.remove();
                         Rlog.d(LOG_TAG, "removeDuplicateCF() reason=" + cfInfo.reason
                                 + ", service=" + serviceClassToString(cfInfo.serviceClass)
-                                + ", number=" + cfInfo.number);
-                        iterator.remove();
+                                + ", number=" + MtkSuppServHelper.encryptString(cfInfo.number));
+                    } else if (firstCfInfo != null && firstCfInfo.serviceClass != cfInfo.serviceClass) {
+                        firstCfInfo = cfInfo;
+                        Rlog.d(LOG_TAG, "reassign cf info, reason=" + cfInfo.reason
+                                + ", service=" + serviceClassToString(cfInfo.serviceClass)
+                                + ", number=" + MtkSuppServHelper.encryptString(cfInfo.number));
                     }
                 }
             }
@@ -1344,7 +1381,7 @@ public final class MMTelSSTransport {
                     + ", action=" + action
                     + ", reason=" + reason
                     + ", serviceClass=" + serviceClass
-                    + ", number=" + number
+                    + ", number=" + MtkSuppServHelper.encryptString(number)
                     + ", phoneId=" + phoneId
                     + ", msg=" + msg);
 
@@ -1368,7 +1405,7 @@ public final class MMTelSSTransport {
                     + ", action=" + actionCFToString(action)
                     + ", reason=" + reasonCFToString(reason)
                     + ", serviceClass=" + serviceClassToString(serviceClass)
-                    + ", number=" + number
+                    + ", number=" + MtkSuppServHelper.encryptString(number)
                     + ", phoneId=" + phoneId
                     + ", isGetTimeSlot=" + isGetTimeSlot);
 
@@ -1716,8 +1753,9 @@ public final class MMTelSSTransport {
             if (number != null) {
                 action.setFowardTo(number, true);
             }
-            action.getFowardTo().setRevealIdentityToCaller(true);
-            action.getFowardTo().setRevealIdentityToTarget(true);
+            // Stop modify invalid action element
+            //action.getFowardTo().setRevealIdentityToCaller(true);
+            //action.getFowardTo().setRevealIdentityToTarget(true);
         }
 
         public void setMedia(Conditions cond, int serviceClass) {
@@ -1740,7 +1778,8 @@ public final class MMTelSSTransport {
             Rlog.d(LOG_TAG, "modifyMatchedCFRule() reason=" + reasonCFToString(reason)
                     + ", action=" + actionCFToString(action)
                     + ", service=" + serviceClassToString(serviceClass)
-                    + ", number=" + number + ", time=" + time + ", timeSlot=" + timeSlot);
+                    + ", number=" + MtkSuppServHelper.encryptString(number)
+                    + ", time=" + time + ", timeSlot=" + timeSlot);
             List<Rule> result = new ArrayList<Rule>();
             Conditions cond = rule.getConditions();
             Actions act = rule.getActions();
@@ -1783,7 +1822,8 @@ public final class MMTelSSTransport {
             Rlog.d(LOG_TAG, "modifyCFRuleForSeperateMedia() reason=" + reasonCFToString(reason)
                     + ", action=" + actionCFToString(action)
                     + ", service=" + serviceClassToString(serviceClass)
-                    + ", number=" + number + ", time=" + time + ", timeSlot=" + timeSlot);
+                    + ", number=" + MtkSuppServHelper.encryptString(number)
+                    + ", time=" + time + ", timeSlot=" + timeSlot);
             List<Rule> ruleList = ruleSet.getRules();
             List<Integer> modifyRuleIdx = new ArrayList<Integer>();
             boolean findNotMatch = false;
@@ -1837,7 +1877,8 @@ public final class MMTelSSTransport {
             Rlog.d(LOG_TAG, "modifyCFRule() reason=" + reasonCFToString(reason)
                     + ", action=" + actionCFToString(action)
                     + ", service=" + serviceClassToString(serviceClass)
-                    + ", number=" + number + ", time=" + time + ", timeSlot=" + timeSlot);
+                    + ", number=" + MtkSuppServHelper.encryptString(number)
+                    + ", time=" + time + ", timeSlot=" + timeSlot);
             int r = 0;
             int isMatchMedia = isRuleMatchServiceClass(rule, serviceClass);
 
@@ -1885,7 +1926,8 @@ public final class MMTelSSTransport {
             Rlog.d(LOG_TAG, "createCFRuleForService() reason=" + reasonCFToString(reason)
                     + ", action=" + actionCFToString(action)
                     + ", service=" + serviceClassToString(serviceClass)
-                    + ", number=" + number + ", time=" + time + ", timeSlot=" + timeSlot);
+                    + ", number=" + MtkSuppServHelper.encryptString(number)
+                    + ", time=" + time + ", timeSlot=" + timeSlot);
             List<Rule> result = new ArrayList<Rule>();
             Rule rule = ruleSet.createNewRule(getRuleId(reason) + ruleIdPostfix);
             Conditions cond = rule.createConditions();
@@ -2003,7 +2045,8 @@ public final class MMTelSSTransport {
                     + ", reason=" + reasonCFToString(reason)
                     + ", action=" + actionCFToString(action)
                     + ", service=" + serviceClassToString(serviceClass)
-                    + ", number=" + number + ", time=" + time + ", timeSlot=" + timeSlot);
+                    + ", number=" + MtkSuppServHelper.encryptString(number)
+                    + ", time=" + time + ", timeSlot=" + timeSlot);
             List<Rule> result = new ArrayList<Rule>();
 
             if ((serviceClass & CommandsInterface.SERVICE_CLASS_VOICE) != 0) {
@@ -2040,12 +2083,12 @@ public final class MMTelSSTransport {
             Rlog.d(LOG_TAG, "getRuleForSetCF() reason=" + reasonCFToString(reason)
                     + ", action=" + actionCFToString(action)
                     + ", service=" + serviceClassToString(serviceClass)
-                    + ", number=" + number + ", time=" + time + ", timeSlot=" + timeSlot);
+                    + ", number=" + MtkSuppServHelper.encryptString(number)
+                    + ", time=" + time + ", timeSlot=" + timeSlot);
             List<Rule> result = new ArrayList<Rule>();
             RuleSet ruleSet = cd.getRuleSet();
             boolean foundRule = false;
             int modifiedRuleService = 0;
-            boolean foundVoiceMailRule = false;
             List<Rule> ruleList = ruleSet.getRules();
             if (ruleList != null) {
                 if (mSSConfig.getMediaTagType() == SuppSrvConfig.MEDIA_TYPE_SEPERATE) {
@@ -2059,26 +2102,19 @@ public final class MMTelSSTransport {
                 } else {
                     for (int i = 0; i < ruleList.size(); i++) {
                         Rule rule = ruleList.get(i);
-                    if ( mSSConfig.isRemoveVoicemailRule()){
-                         String xmlNumber = null;
-                         if (rule.getActions().getFowardTo() != null) {
-                            xmlNumber = convertUriToNumber(
-                                    rule.getActions().getFowardTo().getTarget());
-                        }
-                        Rlog.d(LOG_TAG, "foundVoiceMailRule number" + xmlNumber);
-                        if(!TextUtils.isEmpty(xmlNumber) && xmlNumber.contains("voicemail")){
-                            foundVoiceMailRule = true;
-                            Rlog.d(LOG_TAG, "foundVoiceMailRule");
-                        }
-                    }
                         // Search in the exist rules to match the CF operation
                         // Usually there is only one rule to match,
                         // but still may found many rules which are the same CF type
-                        if (getCFType(rule.getConditions()) == reason && !foundVoiceMailRule) {
+                        if (getCFType(rule.getConditions()) == reason) {
                             foundRule = true;
                             List<Rule> modifiedRuleList = new ArrayList<Rule>();
                             modifiedRuleService |= modifyCFRule(modifiedRuleList, ruleSet, rule, reason, action,
                                     serviceClass, number, time, timeSlot);
+                            if (!rule.getActions().getFowardTo().mIsValidTargetNumber &&
+                                !mSSConfig.isSupportPutNonUriNumber()) {
+                                Rlog.d(LOG_TAG, "getRuleForSetCF() skip rule = " + rule.toXmlString());
+                                continue;
+                            }
                             result.addAll(modifiedRuleList);
                         }
                     }
@@ -2130,7 +2166,7 @@ public final class MMTelSSTransport {
                 }
                 r = uri.substring(uri.indexOf(":")+1, offset);
             }
-            Rlog.d(LOG_TAG, "convertUriToNumber: " + r);
+            Rlog.d(LOG_TAG, "convertUriToNumber: " + ((!SENLOG) ? r : "[hidden]"));
             return r;
         }
 
@@ -2233,7 +2269,7 @@ public final class MMTelSSTransport {
                     + ", action=" + action
                     + ", reason=" + reason
                     + ", serviceClass=" + serviceClass
-                    + ", number=" + number
+                    + ", number=" + MtkSuppServHelper.encryptString(number)
                     + ", time=" + time
                     + ", phoneId=" + phoneId
                     + ", msg=" + msg);
@@ -2258,7 +2294,7 @@ public final class MMTelSSTransport {
                     + ", action=" + actionCFToString(action)
                     + ", reason=" + reasonCFToString(reason)
                     + ", serviceClass=" + serviceClassToString(serviceClass)
-                    + ", number=" + number
+                    + ", number=" + MtkSuppServHelper.encryptString(number)
                     + ", time=" + time
                     + ", timeSlot=" + timeSlot
                     + ", phoneId=" + phoneId);
@@ -2342,7 +2378,7 @@ public final class MMTelSSTransport {
                         cd.saveRuleSet();
                     } else {
                         for (Rule rule : resultList) {
-                            Rlog.d(LOG_TAG, "handleSetCF(): rule=" + rule.toXmlString());
+                            Rlog.d(LOG_TAG, "handleSetCF(): rule=" + MtkSuppServHelper.encryptString(rule.toXmlString()));
                             cd.saveRule(rule);
                             // For CFNRy to update NoReplyTimer
                             if (getCFType(rule.getConditions()) ==
@@ -2751,7 +2787,7 @@ public final class MMTelSSTransport {
                     + ", action=" + action
                     + ", reason=" + reason
                     + ", serviceClass=" + serviceClass
-                    + ", number=" + number
+                    + ", number=" + MtkSuppServHelper.encryptString(number)
                     + ", time=" + time
                     + ", timeSlot=" + timeSlotString
                     + ", phoneId=" + phoneId
@@ -3178,7 +3214,7 @@ public final class MMTelSSTransport {
     public void
     setCallForward(int action, int cfReason, int serviceClass,
             String number, int timeSeconds, Message response, int phoneId) {
-        Rlog.d(LOG_TAG, "number: " + number);
+        Rlog.d(LOG_TAG, "number: " + ((!SENLOG) ? number : "[hidden]"));
         mSSConfig = SuppSrvConfig.getInstance(mContext);
         MMTelSSRequest rr = MMTelSSRequest.obtain(MMTELSS_REQ_SET_CF, response);
         rr.mp.writeInt(action);

@@ -99,7 +99,7 @@ public class ImsSelfActivatorImpl extends ImsSelfActivatorBase {
             "com.mediatek.intent.action.AIRPLANE_CHANGE_DONE";
     protected static final String EXTRA_AIRPLANE_MODE = "airplaneMode";
 
-    private final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
+    private BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
         public void onReceive(Context context, Intent intent) {
             if (ACTION_AIRPLANE_CHANGE_DONE.equals(intent.getAction())){
                 boolean isFlightmode = intent.getBooleanExtra(EXTRA_AIRPLANE_MODE, false);

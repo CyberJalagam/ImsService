@@ -38,6 +38,7 @@ import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureRequest.Builder;
 import android.hardware.camera2.params.OutputConfiguration;
+import android.hardware.camera2.params.SessionConfiguration;
 import android.net.Uri;
 import android.os.ConditionVariable;
 import android.os.Handler;
@@ -50,6 +51,7 @@ import android.view.Surface;
 
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.Executor;
 import java.util.List;
 
 /**
@@ -85,6 +87,19 @@ public class VTSource {
                    " mDegree: " + mDegree +
                    " mFacing: " + mFacing +
                    " mHal: " + mHal;
+        }
+    }
+
+    private static class HandlerExecutor implements Executor {
+        private final Handler mHandler;
+
+        public HandlerExecutor(Handler handler) {
+            mHandler = handler;
+        }
+
+        @Override
+        public void execute(Runnable runCmd) {
+            mHandler.post(runCmd);
         }
     }
 
@@ -614,6 +629,7 @@ public class VTSource {
 
         private boolean mNeedPortraitBuffer;
         private float mZoomValue = 1.0f;
+        private boolean mHasAddTarget = false;
         private CameraCaptureSession mCameraCaptureSession;
         private ConditionVariable mSessionConditionVariable = new ConditionVariable();
         private List<Surface> mSessionUsedSurfaceList = new ArrayList<>();
@@ -845,12 +861,25 @@ public class VTSource {
                         + "or prepareOutputConfiguration fail");
                 return;
             }
+
+            SessionConfiguration sessionConfigByOutput = new SessionConfiguration(
+                    SessionConfiguration.SESSION_REGULAR,
+                    mOutputConfigurations,
+                    new HandlerExecutor(new Handler(mRespondThread.getLooper())),
+                    mSessionCallback);
+            Log.d(mTAG, "[HDR] [createSession] Create sessionConfig");
+
+            Builder requestBuilder = makeRequestBuilder();
+            if (null == requestBuilder) {
+                Log.w(mTAG, "[HDR] [createSession] requestBuilder == null");
+                mEventCallBack.onError();
+                return;
+            }
+            sessionConfigByOutput.setSessionParameters(requestBuilder.build());
+
             mSessionConditionVariable.close();
             try {
-                mCameraDevice.createCaptureSessionByOutputConfigurations(
-                        mOutputConfigurations,
-                        mSessionCallback,
-                        new Handler(mRespondThread.getLooper()));
+                mCameraDevice.createCaptureSession(sessionConfigByOutput);
             } catch (Exception e) {
 
                 Log.e(mTAG, "[HDR] [createSession] create preview session with exception:"
@@ -956,6 +985,71 @@ public class VTSource {
             return bestRange;
         }
 
+        private Builder makeRequestBuilder() {
+
+            Log.d(mTAG, "[HDR] [makeRequestBuilder] Start");
+
+            mHasAddTarget = false;
+            Builder builder = null;
+
+            try {
+                builder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
+
+                Rect cropRegion = calculateCropRegionByZoomValue(mZoomValue);
+                builder.set(CaptureRequest.SCALER_CROP_REGION, cropRegion);
+
+                Range aeFps = calculateAeFpsRange();
+                builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, aeFps);
+
+                if (ImsVTProviderUtil.is512mbProject() || ImsVTProviderUtil.isVideoQualityTestMode()) {
+                    Log.d(mTAG, "[HDR] [makeRequestBuilder] 512MB project or VQtest," +
+                            "turn off face detection");
+                } else {
+                    Log.d(mTAG, "[HDR] [makeRequestBuilder] Turn on face detection");
+                    builder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_USE_SCENE_MODE);
+                    builder.set(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_FACE_PRIORITY);
+                }
+
+                Log.d(mTAG, "[HDR] [makeRequestBuilder] Add target "
+                        + "mNeedRecordStream = " + mNeedRecordStream
+                        + ", mCachedRecordSurface = " + mCachedRecordSurface
+                        + ", mCachedPreviewSurface = " + mCachedPreviewSurface);
+
+                if (mNeedRecordStream && mCachedRecordSurface != null &&
+                        mSessionUsedSurfaceList.contains(mCachedRecordSurface)) {
+                    builder.addTarget(mCachedRecordSurface);
+                    mHasAddTarget = true;
+                }
+
+                if (mCachedPreviewSurface != null &&
+                        mSessionUsedSurfaceList.contains(mCachedPreviewSurface)) {
+                    builder.addTarget(mCachedPreviewSurface);
+                    mHasAddTarget = true;
+                }
+
+                //for op01 and op09 VQ test, set focus and
+                if (ImsVTProviderUtil.isVideoQualityTestMode()) {
+                    Log.d(mTAG, "[HDR] [makeRequestBuilder]" +
+                        " set CONTINUOUS_PICTURE");
+                    builder.set(CaptureRequest.CONTROL_AF_MODE,
+                            CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                }
+
+                builder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+                        CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF);
+
+            } catch  (Exception e) {
+
+                Log.d(mTAG, "[HDR] [makeRequestBuilder] exception: " + e);
+                e.printStackTrace();
+                mEventCallBack.onError();
+            }
+
+            Log.d(mTAG, "[HDR] [makeRequestBuilder] Finish");
+
+            return builder;
+        }
+
         private void submitRepeatingRequest() {
 
             Log.d(mTAG, "[HDR] [submitRepeatingRequest] Start");
@@ -964,55 +1058,18 @@ public class VTSource {
                 Log.w(mTAG, "submitRepeatingRequest illegal state, ignore!");
                 return;
             }
-            boolean hasAddTarget = false;
-            Rect cropRegion = calculateCropRegionByZoomValue(mZoomValue);
+
+            Builder requestBuilder = makeRequestBuilder();
+            if (null == requestBuilder) {
+                Log.w(mTAG, "submitRepeatingRequest requestBuilder == null");
+                mEventCallBack.onError();
+                return;
+            }
+
             try {
-                Builder builder =
-                        mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
-                builder.set(CaptureRequest.SCALER_CROP_REGION, cropRegion);
-
-                Range aeFps = calculateAeFpsRange();
-                builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, aeFps);
-
-                if (ImsVTProviderUtil.is512mbProject() || ImsVTProviderUtil.isVideoQualityTestMode()) {
-                    Log.d(mTAG, "[HDR] [submitRepeatingRequest] 512MB project or VQtest," +
-                            "turn off face detection");
-                } else {
-                    Log.d(mTAG, "[HDR] [submitRepeatingRequest] Turn on face detection");
-                    builder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_USE_SCENE_MODE);
-                    builder.set(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_FACE_PRIORITY);
-                }
-
-                Log.d(mTAG, "[HDR] [submitRepeatingRequest] submitRepeatingRequest "
-                        + "mNeedRecordStream = " + mNeedRecordStream
-                        + "mCachedRecordSurface = " + mCachedRecordSurface
-                        + "mCachedPreviewSurface = " + mCachedPreviewSurface);
-
-                if (mNeedRecordStream && mCachedRecordSurface != null &&
-                        mSessionUsedSurfaceList.contains(mCachedRecordSurface)) {
-                    builder.addTarget(mCachedRecordSurface);
-                    hasAddTarget = true;
-                }
-
-                if (mCachedPreviewSurface != null &&
-                        mSessionUsedSurfaceList.contains(mCachedPreviewSurface)) {
-                    builder.addTarget(mCachedPreviewSurface);
-                    hasAddTarget = true;
-                }
-
-                //for op01 and op09 VQ test, set focus and
-                if (ImsVTProviderUtil.isVideoQualityTestMode()) {
-                    Log.d(mTAG, "[HDR] [submitRepeatingRequest]" +
-                        " set CONTINUOUS_PICTURE");
-                    builder.set(CaptureRequest.CONTROL_AF_MODE,
-                            CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
-                    builder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
-                            CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF);
-                }
-
-                if (hasAddTarget) {
+                if (mHasAddTarget) {
                     mCameraCaptureSession.setRepeatingRequest(
-                            builder.build(),
+                            requestBuilder.build(),
                             null,
                             new Handler(mRespondThread.getLooper()));
                 }
@@ -1020,10 +1077,10 @@ public class VTSource {
                 //for op01 and op09 VQ tes, trigger focus
                 if (ImsVTProviderUtil.isVideoQualityTestMode()) {
                     Log.d(mTAG, "[HDR] [submitRepeatingRequest] trigger set focus once");
-                    builder.set(CaptureRequest.CONTROL_AF_TRIGGER,
+                    requestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
                             CaptureRequest.CONTROL_AF_TRIGGER_START);
                     mCameraCaptureSession.capture(
-                        builder.build(),
+                        requestBuilder.build(),
                         null,
                         new Handler(mRespondThread.getLooper()));
                 }

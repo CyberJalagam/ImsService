@@ -141,6 +141,9 @@ public class Op12ConfigPolicy extends ImsConfigPolicy {
                 config.defVal = "21600";
                 config.unitId = ImsConfigContract.Unit.SECONDS;
                 break;
+            case MtkImsConstants.ConfigConstants.VOICE_OVER_WIFI_MDN:
+                config.defVal = "";
+                break;
             default:
                 set = false;
                 break;

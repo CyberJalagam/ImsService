@@ -63,107 +63,11 @@ import static com.android.internal.telephony.RILConstants.RIL_REQUEST_SET_CALL_W
 import static com.android.internal.telephony.RILConstants.RIL_REQUEST_GET_CLIR;
 import static com.android.internal.telephony.RILConstants.RIL_REQUEST_SET_CLIR;
 import static com.android.internal.telephony.RILConstants.RIL_REQUEST_QUERY_CLIP;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_IMS_DIAL;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_ADD_IMS_CONFERENCE_CALL_MEMBER;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_CANCEL_USSI;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_CONFERENCE_DIAL;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_DIAL_WITH_SIP_URI;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_IMS_EMERGENCY_DIAL;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_FORCE_RELEASE_CALL;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_GET_PROVISION_VALUE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_HANGUP_ALL;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_HOLD_CALL;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_IMS_BEARER_ACTIVATION_DONE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_IMS_BEARER_DEACTIVATION_DONE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_IMS_DEREG_NOTIFICATION;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_IMS_ECT;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_PULL_CALL;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_REMOVE_IMS_CONFERENCE_CALL_MEMBER;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_RESUME_CALL;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SEND_USSI;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_CALL_INDICATION;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_CALL_INDICATION_WITH_CAUSE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_ECC_LIST;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_ECC_SERVICE_CATEGORY;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_IMSCFG;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_IMS_ENABLE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_IMS_RTP_REPORT;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_IMS_VIDEO_ENABLE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_IMS_VOICE_ENABLE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_PROVISION_VALUE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_VILTE_ENABLE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_VIWIFI_ENABLE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_VOLTE_ENABLE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_WFC_ENABLE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_WFC_PROFILE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_VIDEO_CALL_ACCEPT;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_IMS_VT_DIAL;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_VT_DIAL_WITH_SIP_URI;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_HANGUP_WITH_REASON;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_CALLMOD_CHANGE_INDICATOR;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_CALL_INFO_INDICATION;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_CIPHER_INDICATION;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_ECONF_RESULT_INDICATION;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_ECT_INDICATION;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_GET_PROVISION_DONE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_IMS_BEARER_ACTIVATION;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_IMS_BEARER_DEACTIVATION;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_IMS_BEARER_INIT;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_IMS_DEREG_DONE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_IMS_DISABLE_DONE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_IMS_DISABLE_START;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_IMS_ENABLE_DONE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_IMS_ENABLE_START;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_IMS_EVENT_PACKAGE_INDICATION;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_IMS_REGISTRATION_INFO;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_IMS_RTP_INFO;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_INCOMING_CALL_INDICATION;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_ON_USSI;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_ON_XUI;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_ON_VOLTE_SUBSCRIPTION;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_SIP_CALL_PROGRESS_INDICATOR;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_SPEECH_CODEC_INFO;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_VIDEO_CAPABILITY_INDICATOR;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_VOLTE_SETTING;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_IMS_MULTIIMS_COUNT;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_IMS_REGISTRATION_REPORT;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SEPARATE_CONNECTION;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_VOICE_DOMAIN_PREFERENCE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_CLIP;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_GET_COLR;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_COLR;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_GET_COLP;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_COLP;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_QUERY_CALL_FORWARD_IN_TIME_SLOT;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_CALL_FORWARD_IN_TIME_SLOT;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_RUN_GBA;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_GET_XCAP_STATUS;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_RESET_SUPP_SERV;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SETUP_XCAP_USER_AGENT_STRING;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_MD_IMSCFG;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_IMS_BEARER_NOTIFICATION;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_IMS_CONFIG_SET_FEATURE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_IMS_CONFIG_GET_FEATURE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_IMS_CONFIG_SET_PROVISION;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_IMS_CONFIG_GET_PROVISION;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_IMS_CONFIG_SET_RESOURCE_CAP;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_IMS_CONFIG_GET_RESOURCE_CAP;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_IMS_CONFIG_DYNAMIC_IMS_SWITCH_COMPLETE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_IMS_CONFIG_CONFIG_CHANGED;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_IMS_CONFIG_FEATURE_CHANGED;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_IMS_CONFIG_CONFIG_LOADED;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SET_RCS_UA_ENABLE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_IMS_DATA_INFO_NOTIFY;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_NO_EMERGENCY_CALLBACK_MODE;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_INCOMING_CALL_ADDITIONAL_INFO;
+import static com.android.internal.telephony.RILConstants.RIL_REQUEST_SEPARATE_CONNECTION;
+import static com.android.internal.telephony.RILConstants.RIL_UNSOL_SUPP_SVC_NOTIFICATION;
+
 
 // SMS-START
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_IMS_SEND_SMS_EX;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_SMS_ACKNOWLEDGE_EX;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_REQUEST_CDMA_SMS_ACKNOWLEDGE_EX;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_RESPONSE_NEW_SMS_STATUS_REPORT_EX;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_RESPONSE_NEW_SMS_EX;
-import static com.mediatek.internal.telephony.MtkRILConstants.RIL_UNSOL_RESPONSE_CDMA_NEW_SMS_EX;
 import android.hardware.radio.V1_0.CdmaSmsAck;
 import android.hardware.radio.V1_0.CdmaSmsMessage;
 import android.hardware.radio.V1_0.ImsSmsMessage;
@@ -173,6 +77,7 @@ import com.android.internal.telephony.uicc.IccUtils;
 import com.android.internal.telephony.RILConstants;
 import com.android.internal.telephony.SmsConstants;
 // SMS-END
+import android.hardware.radio.V1_0.IRadio;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
@@ -191,10 +96,12 @@ import java.util.Vector;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.NoSuchElementException;
 
-import vendor.mediatek.hardware.radio.V3_0.ConferenceDial;
-import vendor.mediatek.hardware.radio.V3_10.IRadio;
-import vendor.mediatek.hardware.radio.V3_0.CallForwardInfoEx;
+import vendor.mediatek.hardware.mtkradioex.V1_0.ConferenceDial;
+import vendor.mediatek.hardware.mtkradioex.V1_0.CallForwardInfoEx;
+import vendor.mediatek.hardware.mtkradioex.V1_6.IMtkRadioEx;
+import vendor.mediatek.hardware.mtkradioex.V1_0.VendorSetting;
 
 import android.content.Context;
 import android.hardware.radio.V1_0.Dial;
@@ -214,6 +121,7 @@ import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.WorkSource;
+import android.telephony.ims.ImsCallProfile;
 import android.telephony.ModemActivityInfo;
 import android.telephony.PhoneNumberUtils;
 import android.telephony.Rlog;
@@ -231,6 +139,7 @@ import com.android.internal.telephony.metrics.TelephonyMetrics;
 
 import com.mediatek.ims.ImsServiceCallTracker;
 import com.mediatek.ims.ImsCallInfo;
+import com.mediatek.ims.ImsCommonUtil;
 import com.mediatek.internal.telephony.MtkCallForwardInfo;
 
 // for External component
@@ -238,6 +147,8 @@ import com.mediatek.ims.plugin.ExtensionFactory;
 import com.mediatek.ims.plugin.ExtensionPluginFactory;
 import com.mediatek.ims.plugin.impl.ImsSelfActivatorBase;
 import com.mediatek.ims.plugin.impl.ImsCallPluginBase;
+
+import android.telephony.TelephonyManager;
 
 /**
  * {@hide}
@@ -408,8 +319,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     static final boolean IMSRIL_LOGD = true;
     static final boolean IMSRIL_LOGV = false; // STOPSHIP if true
     static final int RIL_HISTOGRAM_BUCKET_COUNT = 5;
-    static final boolean IMSRIL_SDBG = SystemProperties.get("ro.build.type").equals("user")
-            ? false : true;
+
     /**
      * Wake lock timeout should be longer than the longest timeout in
      * the vendor ril.
@@ -469,13 +379,18 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     private OpImsCommandsInterface mOpCI;
 
     boolean mIsMobileNetworkSupported;
-    ImsRadioResponse mRadioResponse;
-    ImsRadioIndication mRadioIndication;
+    RadioResponseImpl mRadioResponse;
+    RadioIndicationImpl mRadioIndication;
+    ImsRadioResponse mImsRadioResponse;
+    ImsRadioIndication mImsRadioIndication;
     volatile IRadio mRadioProxy = null;
-
+    volatile IMtkRadioEx mMtkRadioProxy = null;
     final AtomicLong mRadioProxyCookie = new AtomicLong(0);
+    final AtomicLong mMtkRadioProxyCookie = new AtomicLong(0);
     final RadioProxyDeathRecipient mRadioProxyDeathRecipient;
+    final MtkRadioProxyDeathRecipient mMtkRadioProxyDeathRecipient;
     final RilHandler mRilHandler;
+
 
     //***** Events
     static final int EVENT_SEND                      = 1;
@@ -483,10 +398,16 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     static final int EVENT_ACK_WAKE_LOCK_TIMEOUT     = 4;
     static final int EVENT_BLOCKING_RESPONSE_TIMEOUT = 5;
     static final int EVENT_RADIO_PROXY_DEAD          = 6;
+    static final int EVENT_MTK_RADIO_PROXY_DEAD      = 7;
+    static final int EVENT_TRIGGER_TO_FIRE_PENDING_URC = 8;
 
     //***** Constants
+    // IMS MTK
+    static final String [] MTK_IMS_HIDL_SERVICE_NAME =
+        {"imsSlot1", "imsSlot2", "imsSlot3","imsSlot4"};
+    // IMS AOSP
     static final String [] IMS_HIDL_SERVICE_NAME =
-        {"imsrild1", "imsrild2", "imsrild3","imsrild4"};
+        {"imsAospSlot1", "imsAospSlot2", "imsAospSlot3","imsAospSlot4"};
 
     static final int IRADIO_GET_SERVICE_DELAY_MILLIS = 4 * 1000;
     static final boolean IMS_RILA_LOGD = true;
@@ -653,6 +574,37 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
                         getRadioProxy(null);
                     }
                     break;
+                case EVENT_MTK_RADIO_PROXY_DEAD:
+                    riljLog("handleMessage: EVENT_MTK_RADIO_PROXY_DEAD cookie = " + msg.obj +
+                            " mMtkRadioProxyCookie = " + mMtkRadioProxyCookie.get());
+                    if ((Long) msg.obj == mMtkRadioProxyCookie.get()) {
+                        resetMtkProxyAndRequestList();
+
+                        // todo: rild should be back up since message was sent with a delay. this is
+                        // a hack.
+                        IMtkRadioEx mtkProxy = getMtkRadioProxy(null);
+                        if (mtkProxy != null) {
+                            // Trigger to fire pending URC
+                            notifyImsServiceReady();
+                        } else {
+                            mRilHandler.sendMessage(
+                                    mRilHandler.obtainMessage(EVENT_TRIGGER_TO_FIRE_PENDING_URC));
+                        }
+                    }
+                    break;
+                case EVENT_TRIGGER_TO_FIRE_PENDING_URC:
+                    IMtkRadioEx mtkProxy = getMtkRadioProxy(null);
+                    if (mtkProxy != null) {
+                        // Trigger to fire pending URC
+                        riljLog("Trigger to fire pending URC " + mPhoneId);
+                        notifyImsServiceReady();
+                    } else {
+                        // Delay 300ms and trigger again
+                        mRilHandler.sendMessageDelayed(
+                                    mRilHandler.obtainMessage(EVENT_TRIGGER_TO_FIRE_PENDING_URC),
+                                    300);
+                    }
+                    break;
             }
         }
     }
@@ -687,9 +639,18 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             riljLog("serviceDied");
             // todo: temp hack to send delayed message so that rild is back up by then
             //mRilHandler.sendMessage(mRilHandler.obtainMessage(EVENT_RADIO_PROXY_DEAD, cookie));
-            mRilHandler.sendMessageDelayed(
-                    mRilHandler.obtainMessage(EVENT_RADIO_PROXY_DEAD, cookie),
-                    IRADIO_GET_SERVICE_DELAY_MILLIS);
+            mRilHandler.sendMessage(mRilHandler.obtainMessage(EVENT_RADIO_PROXY_DEAD, cookie));
+        }
+    }
+
+    final class MtkRadioProxyDeathRecipient implements HwBinder.DeathRecipient {
+        @Override
+        public void serviceDied(long cookie) {
+            // Deal with service going away
+            riljLog("MtkRadioProxyDeathRecipient, serviceDied");
+            // todo: temp hack to send delayed message so that rild is back up by then
+            //mRilHandler.sendMessage(mRilHandler.obtainMessage(EVENT_RADIO_PROXY_DEAD, cookie));
+            mRilHandler.sendMessage(mRilHandler.obtainMessage(EVENT_MTK_RADIO_PROXY_DEAD, cookie));
         }
     }
 
@@ -700,7 +661,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
         // increment the cookie so that death notification can be ignored
         mRadioProxyCookie.incrementAndGet();
 
-        setRadioState(RadioState.RADIO_UNAVAILABLE);
+        setRadioState(TelephonyManager.RADIO_POWER_UNAVAILABLE);
 
         RILRequest.resetSerial();
         // Clear request list on close
@@ -722,13 +683,47 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
         }
 
         try {
-            mRadioProxy = IRadio.getService(IMS_HIDL_SERVICE_NAME[mPhoneId == null ? 0 : mPhoneId]);
+            try {
+                mRadioProxy = android.hardware.radio.V1_4.IRadio.getService(
+                        IMS_HIDL_SERVICE_NAME[mPhoneId == null ? 0 : mPhoneId], false);
+            } catch (NoSuchElementException e) {
+            }
+
+            if (mRadioProxy == null) {
+                try {
+                    mRadioProxy = android.hardware.radio.V1_3.IRadio.getService(
+                            IMS_HIDL_SERVICE_NAME[mPhoneId == null ? 0 : mPhoneId], false);
+                } catch (NoSuchElementException e) {
+                }
+            }
+
+            if (mRadioProxy == null) {
+                try {
+                    mRadioProxy = android.hardware.radio.V1_2.IRadio.getService(
+                            IMS_HIDL_SERVICE_NAME[mPhoneId == null ? 0 : mPhoneId], false);
+                } catch (NoSuchElementException e) {
+                }
+            }
+
+            if (mRadioProxy == null) {
+                try {
+                    mRadioProxy = android.hardware.radio.V1_1.IRadio.getService(
+                            IMS_HIDL_SERVICE_NAME[mPhoneId == null ? 0 : mPhoneId], false);
+                } catch (NoSuchElementException e) {
+                }
+            }
+
+            if (mRadioProxy == null) {
+                try {
+                    mRadioProxy = android.hardware.radio.V1_0.IRadio.getService(
+                            IMS_HIDL_SERVICE_NAME[mPhoneId == null ? 0 : mPhoneId], false);
+                } catch (NoSuchElementException e) {
+                }
+            }
             riljLogi("getRadioProxy: " + mRadioProxy);
             if (mRadioProxy != null) {
                 mRadioProxy.linkToDeath(mRadioProxyDeathRecipient,
                         mRadioProxyCookie.incrementAndGet());
-
-                mRadioProxy.setResponseFunctionsIms(mRadioResponse, mRadioIndication);
                 mRadioProxy.setResponseFunctions(mRadioResponse, mRadioIndication);
                 riljLogi("setResponseFunctionsIms");
                 // DTMF Handling
@@ -770,12 +765,6 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
                         CommandException.fromRilErrno(RADIO_NOT_AVAILABLE));
                 result.sendToTarget();
             }
-
-            // if service is not up, treat it like death notification to try to get service again
-            mRilHandler.sendMessageDelayed(
-                    mRilHandler.obtainMessage(EVENT_RADIO_PROXY_DEAD,
-                            mRadioProxyCookie.incrementAndGet()),
-                    IRADIO_GET_SERVICE_DELAY_MILLIS);
         }
 
         return mRadioProxy;
@@ -796,11 +785,15 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
                 Context.CONNECTIVITY_SERVICE);
         mIsMobileNetworkSupported = cm.isNetworkSupported(ConnectivityManager.TYPE_MOBILE);
 
-        mRadioResponse = new ImsRadioResponse(this, instanceId);
-        mRadioIndication = new ImsRadioIndication(this, instanceId);
+        mRadioResponse = new RadioResponseImpl(this, instanceId);
+        mRadioIndication = new RadioIndicationImpl(this, instanceId);
+        mImsRadioResponse = new ImsRadioResponse(this, instanceId);
+        mImsRadioIndication = new ImsRadioIndication(this, instanceId);
 
         mRilHandler = new RilHandler();
         mRadioProxyDeathRecipient = new RadioProxyDeathRecipient();
+        mMtkRadioProxyDeathRecipient = new MtkRadioProxyDeathRecipient();
+
         PowerManager pm = (PowerManager)context.getSystemService(Context.POWER_SERVICE);
         mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, IMSRIL_LOG_TAG);
         mWakeLock.setReferenceCounted(false);
@@ -819,6 +812,11 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
         IRadio proxy = getRadioProxy(null);
         if (IMS_RILA_LOGD) {
             riljLogi("Ims-RIL: proxy = " + (proxy == null));
+        }
+
+        IMtkRadioEx mtkProxy = getMtkRadioProxy(null);
+        if (IMS_RILA_LOGD) {
+            riljLog("Mtk-Ims-RIL: proxy = " + (mtkProxy == null));
         }
         // Create WWOP Command Interfaces
         mOpCI = OpImsRILUtil.makeCommandInterface(context, instanceId);
@@ -841,13 +839,12 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     private void handleRadioProxyExceptionForRR(RILRequest rr, String caller, Exception e) {
         riljLoge(caller + ": " + e);
         resetProxyAndRequestList();
+    }
 
-        // service most likely died, handle exception like death notification to try to get service
-        // again
-        mRilHandler.sendMessageDelayed(
-                mRilHandler.obtainMessage(EVENT_RADIO_PROXY_DEAD,
-                        mRadioProxyCookie.incrementAndGet()),
-                IRADIO_GET_SERVICE_DELAY_MILLIS);
+    private void handleMtkRadioProxyExceptionForRR(RILRequest rr,
+            String caller, Exception e) {
+        riljLoge(caller + ": " + e);
+        resetMtkProxyAndRequestList();
     }
 
     /**
@@ -909,18 +906,13 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     */
 
     @Override
-    public void start(String callee, int clirMode, boolean isEmergency, boolean isVideoCall,Message result) {
+    public void start(String callee, ImsCallProfile callProfile, int clirMode, boolean isEmergency,
+            boolean isVideoCall, Message result) {
 
         if (isVideoCall) {
             vtDial(callee, clirMode, null, result);
         } else if (isEmergency) {
-
-            ExtensionPluginFactory facotry = ExtensionFactory.makeExtensionPluginFactory();
-
-            int serviceCategory = facotry.makeImsCallPlugin(mContext).getServiceCategoryFromEcc(callee);
-
-            setEccServiceCategory(serviceCategory, null);
-            emergencyDial(callee, clirMode, null, result);
+            emergencyDial(callee, callProfile, clirMode, null, result);
         } else {
             dial(callee, clirMode, result);
         }
@@ -976,9 +968,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void acceptVideoCall(int videoMode, int callId, Message response) {
 
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_VIDEO_CALL_ACCEPT, response,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_VIDEO_CALL_ACCEPT, response,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -989,7 +981,34 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.videoCallAccept(rr.mSerial, videoMode, callId);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "acceptCall", e);
+                handleMtkRadioProxyExceptionForRR(rr, "acceptCall", e);
+            }
+        }
+    }
+
+    /**
+     * Approve ECC redial or not
+     *
+     * @param approve 0: disapprove, 1: approve
+     * @param callId Call ID
+     * @param response Response Object
+     *
+     */
+    @Override
+    public void approveEccRedial(int approve, int callId, Message response) {
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
+        if (radioProxy != null) {
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_ECC_REDIAL_APPROVE, response,
+                    mRILDefaultWorkSource);
+            if (IMS_RILA_LOGD) {
+                riljLog(rr.serialString()
+                        + ">  " + requestToString(rr.mRequest) + " approve = "
+                        + approve + " callId = " + callId);
+            }
+            try {
+                radioProxy.eccRedialApprove(rr.mSerial, approve, callId);
+            } catch (RemoteException | RuntimeException e) {
+                handleMtkRadioProxyExceptionForRR(rr, "approveEccRedial", e);
             }
         }
     }
@@ -1027,10 +1046,10 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void hangup(int callId, int reason, Message response) {
 
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
 
-            RILRequest rr = obtainRequest(RIL_REQUEST_HANGUP_WITH_REASON, response,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_HANGUP_WITH_REASON, response,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1084,9 +1103,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void hold(int callId, Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_HOLD_CALL, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_HOLD_CALL, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1095,9 +1114,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             }
 
             try {
-                radioProxy.holdCall(rr.mSerial, callId);
+                radioProxy.controlCall(rr.mSerial, ImsRILConstants.CONTROL_CALL_HOLD, callId);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "holdCall", e);
+                handleMtkRadioProxyExceptionForRR(rr, "holdCall", e);
             }
         }
     }
@@ -1110,9 +1129,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void resume(int callId, Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_RESUME_CALL, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_RESUME_CALL, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1121,9 +1140,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             }
 
             try {
-                radioProxy.resumeCall(rr.mSerial, callId);
+                radioProxy.controlCall(rr.mSerial, ImsRILConstants.CONTROL_CALL_RESUME, callId);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "resumeCall", e);
+                handleMtkRadioProxyExceptionForRR(rr, "resumeCall", e);
             }
         }
 
@@ -1259,48 +1278,22 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void setCallIndication(int mode, int callId, int seqNum, int cause, Message response) {
 
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_CALL_INDICATION, response,
+                    mRILDefaultWorkSource);
 
-            // if the disallow decision is made by ImsService.sendIncomingCallIndication()
-            // the cause will be -1 and we keep using old interface
-            if (cause == -1) {
-                RILRequest rr = obtainRequest(
-                        RIL_REQUEST_SET_CALL_INDICATION,
-                        response,
-                        mRILDefaultWorkSource);
-
-                if (IMS_RILA_LOGD) {
-                    riljLog(rr.serialString()
-                            + ">  " + requestToString(rr.mRequest) + " mode = " + mode
-                            + " callId = " + callId + " seqNum = " + seqNum);
-                }
-
-                try {
-                    radioProxy.setCallIndication(rr.mSerial, mode, callId, seqNum);
-                } catch (RemoteException | RuntimeException e) {
-                    handleRadioProxyExceptionForRR(rr, "setCallIndication", e);
-                }
-
-            } else {
-                RILRequest rr = obtainRequest(
-                        RIL_REQUEST_SET_CALL_INDICATION_WITH_CAUSE,
-                        response,
-                        mRILDefaultWorkSource);
-
-                if (IMS_RILA_LOGD) {
-                    riljLog(rr.serialString()
-                            + ">  " + requestToString(rr.mRequest) + " mode = " + mode
-                            + " callId = " + callId + " cause = " + cause + " seqNum = " + seqNum);
-                }
-
-                try {
-                    radioProxy.setCallIndicationWithCause(rr.mSerial, mode, callId, seqNum, cause);
-                } catch (RemoteException | RuntimeException e) {
-                    handleRadioProxyExceptionForRR(rr, "setCallIndication", e);
-                }
+            if (IMS_RILA_LOGD) {
+                riljLog(rr.serialString()
+                        + ">  " + requestToString(rr.mRequest) + " mode = " + mode
+                        + " callId = " + callId + " seqNum = " + seqNum + " cause = " + cause);
             }
 
+            try {
+                radioProxy.setCallIndication(rr.mSerial, mode, callId, seqNum, cause);
+            } catch (RemoteException | RuntimeException e) {
+                handleMtkRadioProxyExceptionForRR(rr, "setCallIndication", e);
+            }
         }
     }
 
@@ -1325,9 +1318,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void deregisterImsWithCause(int cause, Message response) {
 
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_IMS_DEREG_NOTIFICATION , response,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_IMS_DEREG_NOTIFICATION , response,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1338,7 +1331,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.imsDeregNotification(rr.mSerial, cause);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "imsDeregNotification", e);
+                handleMtkRadioProxyExceptionForRR(rr, "imsDeregNotification", e);
             }
         }
     }
@@ -1359,9 +1352,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
         boolean smsEnable = (params[4] == 1) ? true : false;
         boolean eimsEnable = (params[5] == 1) ? true : false;
 
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_IMSCFG, response,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_IMSCFG, response,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1382,9 +1375,14 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
                                                  viwifiEnable,
                                                  smsEnable,
                                                  eimsEnable);
+                if (ImsCommonUtil.supportMdAutoSetupIms()) {
+                    findAndRemoveRequestFromList(rr.mSerial);
+                    riljLog(rr.serialString()
+                            + "<  " + requestToString(rr.mRequest) + " sent and removed");
+                }
 
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setImsCfg", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setImsCfg", e);
             }
         }
     }
@@ -1398,9 +1396,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void setModemImsCfg(String keys, String values, int type, Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_MD_IMSCFG, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_MD_IMSCFG, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1414,7 +1412,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.setModemImsCfg(rr.mSerial, keys, values, type);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "sendModemImsCfg", e);
+                handleMtkRadioProxyExceptionForRR(rr, "sendModemImsCfg", e);
             }
         }
     }
@@ -1426,9 +1424,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void turnOnIms(Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_IMS_ENABLE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_IMS_ENABLE, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1439,7 +1437,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.setImsEnable(rr.mSerial, true);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setImsEnable", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setImsEnable", e);
             }
         }
     }
@@ -1451,9 +1449,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void turnOffIms(Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_IMS_ENABLE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_IMS_ENABLE, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1464,7 +1462,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.setImsEnable(rr.mSerial, false);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setImsEnable", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setImsEnable", e);
             }
         }
 
@@ -1476,9 +1474,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void turnOnVolte(Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_VOLTE_ENABLE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_VOLTE_ENABLE, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1487,9 +1485,10 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             }
 
             try {
-                radioProxy.setVolteEnable(rr.mSerial, true);
+                radioProxy.setVendorSetting(rr.mSerial, VendorSetting.VENDOR_SETTING_VOLTE_ENABLE,
+                        Integer.toString(1));
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setVolteEnable", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setVendorSetting", e);
             }
         }
     }
@@ -1501,9 +1500,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void turnOffVolte(Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_VOLTE_ENABLE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_VOLTE_ENABLE, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1512,9 +1511,10 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             }
 
             try {
-                radioProxy.setVolteEnable(rr.mSerial, false);
+                radioProxy.setVendorSetting(rr.mSerial, VendorSetting.VENDOR_SETTING_VOLTE_ENABLE,
+                        Integer.toString(0));
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setVolteEnable", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setVendorSetting", e);
             }
         }
     }
@@ -1526,9 +1526,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void turnOnWfc(Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_WFC_ENABLE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_WFC_ENABLE, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1537,9 +1537,10 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             }
 
             try {
-                radioProxy.setWfcEnable(rr.mSerial, true);
+                radioProxy.setVendorSetting(rr.mSerial, VendorSetting.VENDOR_SETTING_WFC_ENABLE,
+                        Integer.toString(1));
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setWfcEnable", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setVendorSetting", e);
             }
         }
     }
@@ -1551,9 +1552,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void turnOffWfc(Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_WFC_ENABLE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_WFC_ENABLE, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1562,9 +1563,10 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             }
 
             try {
-                radioProxy.setWfcEnable(rr.mSerial, false);
+                radioProxy.setVendorSetting(rr.mSerial, VendorSetting.VENDOR_SETTING_WFC_ENABLE,
+                        Integer.toString(0));
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setWfcEnable", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setVendorSetting", e);
             }
         }
     }
@@ -1576,9 +1578,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void turnOnVilte(Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_VILTE_ENABLE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_VILTE_ENABLE, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1587,9 +1589,10 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             }
 
             try {
-                radioProxy.setVilteEnable(rr.mSerial, true);
+                radioProxy.setVendorSetting(rr.mSerial, VendorSetting.VENDOR_SETTING_VILTE_ENABLE,
+                        Integer.toString(1));
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setVilteEnable", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setVendorSetting", e);
             }
         }
     }
@@ -1601,9 +1604,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void turnOffVilte(Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_VILTE_ENABLE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_VILTE_ENABLE, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1612,9 +1615,10 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             }
 
             try {
-                radioProxy.setVilteEnable(rr.mSerial, false);
+                radioProxy.setVendorSetting(rr.mSerial, VendorSetting.VENDOR_SETTING_VILTE_ENABLE,
+                        Integer.toString(0));
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setVilteEnable", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setVendorSetting", e);
             }
         }
     }
@@ -1626,9 +1630,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void turnOnViwifi(Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_VIWIFI_ENABLE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_VIWIFI_ENABLE, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1637,9 +1641,10 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             }
 
             try {
-                radioProxy.setViWifiEnable(rr.mSerial, true);
+                radioProxy.setVendorSetting(rr.mSerial, VendorSetting.VENDOR_SETTING_VIWIFI_ENABLE,
+                        Integer.toString(1));
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setViWifiEnable", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setVendorSetting", e);
             }
         }
     }
@@ -1651,9 +1656,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void turnOffViwifi(Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_VIWIFI_ENABLE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_VIWIFI_ENABLE, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1662,9 +1667,10 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             }
 
             try {
-                radioProxy.setViWifiEnable(rr.mSerial, false);
+                radioProxy.setVendorSetting(rr.mSerial, VendorSetting.VENDOR_SETTING_VIWIFI_ENABLE,
+                        Integer.toString(0));
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setViWifiEnable", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setVendorSetting", e);
             }
         }
     }
@@ -1676,9 +1682,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void turnOnRcsUa(Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_RCS_UA_ENABLE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_RCS_UA_ENABLE, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1687,9 +1693,10 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             }
 
             try {
-                radioProxy.setRcsUaEnable(rr.mSerial, true);
+                radioProxy.setVendorSetting(rr.mSerial, VendorSetting.VENDOR_SETTING_RCS_UA_ENABLE,
+                        Integer.toString(1));
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setRcsUaEnable", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setVendorSetting", e);
             }
         }
     }
@@ -1701,9 +1708,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void turnOffRcsUa(Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_RCS_UA_ENABLE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_RCS_UA_ENABLE, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1712,59 +1719,10 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             }
 
             try {
-                radioProxy.setRcsUaEnable(rr.mSerial, false);
+                radioProxy.setVendorSetting(rr.mSerial, VendorSetting.VENDOR_SETTING_RCS_UA_ENABLE,
+                        Integer.toString(0));
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setRcsUaEnable", e);
-            }
-        }
-    }
-
-    /**
-     * Turn on IMS Voice
-     * @param result
-     */
-    @Override
-    public void turnOnImsVoice(Message result) {
-
-        IRadio radioProxy = getRadioProxy(result);
-        if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_IMS_VOICE_ENABLE, result,
-                    mRILDefaultWorkSource);
-
-            if (IMS_RILA_LOGD) {
-                riljLog(rr.serialString()
-                        + ">  " + requestToString(rr.mRequest) + " switch = ON");
-            }
-
-            try {
-                radioProxy.setImsVoiceEnable(rr.mSerial, true);
-            } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setImsVoiceEnable", e);
-            }
-        }
-    }
-
-    /**
-     * Turn off IMS Voice
-     * @param result
-     */
-    @Override
-    public void turnOffImsVoice(Message result) {
-
-        IRadio radioProxy = getRadioProxy(result);
-        if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_IMS_VOICE_ENABLE, result,
-                    mRILDefaultWorkSource);
-
-            if (IMS_RILA_LOGD) {
-                riljLog(rr.serialString()
-                        + ">  " + requestToString(rr.mRequest) + " switch = OFF");
-            }
-
-            try {
-                radioProxy.setImsVoiceEnable(rr.mSerial, false);
-            } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setImsVoiceEnable", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setVendorSetting", e);
             }
         }
     }
@@ -1776,9 +1734,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void turnOnImsVideo(Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_IMS_VIDEO_ENABLE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_IMS_VIDEO_ENABLE, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1789,7 +1747,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.setImsVideoEnable(rr.mSerial, true);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setImsVideoEnable", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setImsVideoEnable", e);
             }
         }
     }
@@ -1801,9 +1759,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void turnOffImsVideo(Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_IMS_VIDEO_ENABLE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_IMS_VIDEO_ENABLE, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1814,7 +1772,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.setImsVideoEnable(rr.mSerial, false);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setImsVideoEnable", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setImsVideoEnable", e);
             }
         }
     }
@@ -1827,9 +1785,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void getProvisionValue(String provisionStr, Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_GET_PROVISION_VALUE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_GET_PROVISION_VALUE, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1840,7 +1798,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.getProvisionValue(rr.mSerial, provisionStr);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "getProvisionValue", e);
+                handleMtkRadioProxyExceptionForRR(rr, "getProvisionValue", e);
             }
         }
     }
@@ -1855,9 +1813,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     public void setProvisionValue(String provisionStr,
             String provisionValue, Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_PROVISION_VALUE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_PROVISION_VALUE, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -1868,7 +1826,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.setProvisionValue(rr.mSerial, provisionStr, provisionValue);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setProvisionValue", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setProvisionValue", e);
             }
         }
     }
@@ -1883,16 +1841,16 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
      */
     public void setImsCfgFeatureValue(int featureId, int network, int value, int isLast,
                                       Message result) {
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_IMS_CONFIG_SET_FEATURE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_IMS_CONFIG_SET_FEATURE, result,
                     mRILDefaultWorkSource);
 
             try {
                 radioProxy.setImsCfgFeatureValue(rr.mSerial, featureId, network, value,
                         isLast);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setImsCfgFeatureValue", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setImsCfgFeatureValue", e);
             }
         }
     }
@@ -1905,15 +1863,15 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
      * @param result
      */
     public void getImsCfgFeatureValue(int featureId, int network, Message result) {
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_IMS_CONFIG_GET_FEATURE, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_IMS_CONFIG_GET_FEATURE, result,
                     mRILDefaultWorkSource);
 
             try {
                 radioProxy.getImsCfgFeatureValue(rr.mSerial, featureId, network);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "getImsCfgFeatureValue", e);
+                handleMtkRadioProxyExceptionForRR(rr, "getImsCfgFeatureValue", e);
             }
         }
     }
@@ -1926,15 +1884,15 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
      * @param result
      */
     public void setImsCfgProvisionValue(int configId, String value, Message result) {
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_IMS_CONFIG_SET_PROVISION, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_IMS_CONFIG_SET_PROVISION, result,
                     mRILDefaultWorkSource);
 
             try {
                 radioProxy.setImsCfgProvisionValue(rr.mSerial, configId, value);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setImsCfgProvisionValue", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setImsCfgProvisionValue", e);
             }
         }
     }
@@ -1946,36 +1904,15 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
      * @param result
      */
     public void getImsCfgProvisionValue(int configId, Message result) {
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_IMS_CONFIG_GET_PROVISION, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_IMS_CONFIG_GET_PROVISION, result,
                     mRILDefaultWorkSource);
 
             try {
                 radioProxy.getImsCfgProvisionValue(rr.mSerial, configId);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "getImsCfgProvisionValue", e);
-            }
-        }
-    }
-
-    /**
-     * Set IMS Config Resource Capability Value
-     *
-     * @param featureId
-     * @param value
-     * @param result
-     */
-    public void setImsCfgResourceCapValue(int featureId, int value, Message result) {
-        IRadio radioProxy = getRadioProxy(result);
-        if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_IMS_CONFIG_SET_RESOURCE_CAP, result,
-                    mRILDefaultWorkSource);
-
-            try {
-                radioProxy.setImsCfgResourceCapValue(rr.mSerial, featureId, value);
-            } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setImsCfgResourceCapValue", e);
+                handleMtkRadioProxyExceptionForRR(rr, "getImsCfgProvisionValue", e);
             }
         }
     }
@@ -1987,32 +1924,35 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
      * @param result
      */
     public void getImsCfgResourceCapValue(int featureId, Message result) {
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_IMS_CONFIG_GET_RESOURCE_CAP, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_IMS_CONFIG_GET_RESOURCE_CAP, result,
                     mRILDefaultWorkSource);
 
             try {
                 radioProxy.getImsCfgResourceCapValue(rr.mSerial, featureId);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "getImsCfgResourceCapValue", e);
+                handleMtkRadioProxyExceptionForRR(rr, "getImsCfgResourceCapValue", e);
             }
         }
     }
 
     /**
-    * Invite or merge a new member to existed IMS conference call
+    * Add a new member to VoLTE conference call according to the parameter - address.
     *
-    * @param confCallId IMS conference call id
-    * @param addressToAdd The address(phone number or SIP URI)
-    * @param callIdToAdd The call id to add
-    * @param response Command response
+    * @param confCallId IMS(VoLTE) conference call id
+    * @param participant The address(phone number or SIP URI)
+    * @param response Command response.
     *
     */
     @Override
-    public void inviteParticipant(int confCallId, String addressToAdd, int callIdToAdd,
-                                  Message response) {
-        internalAddConferenceMember(confCallId, addressToAdd, callIdToAdd, response);
+    public void inviteParticipants(int confCallId, String participant, Message response) {
+        int participantCallId =
+                ImsServiceCallTracker.getInstance(mPhoneId).getParticipantCallId(participant);
+
+
+        internalAddConferenceMember(confCallId, participant,
+                                    participantCallId, response);
     }
 
     /**
@@ -2024,12 +1964,41 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     *
     */
     @Override
-    public void removeParticipant(int confCallId, String participant, Message response) {
+    public void removeParticipants(int confCallId, String participant, Message response) {
         int participantCallId =
                 ImsServiceCallTracker.getInstance(mPhoneId).getParticipantCallId(participant);
 
         internalRemoveConferenceMember(confCallId, participant,
                                        participantCallId, response);
+    }
+
+
+    /**
+    * Add a new member to VoLTE conference call according to the parameter - callId.
+    * [ALPS02475154] invite participants using call id. @{
+    * @param confCallId IMS(VoLTE) conference call id
+    * @param callInfo The added participant call info
+    * @param response Command response.
+    */
+    @Override
+    public void inviteParticipantsByCallId(int confCallId, ImsCallInfo callInfo,
+            Message response) {
+        if (callInfo == null) {
+            Rlog.d(IMSRIL_LOG_TAG, "Invite participants failed, call info is null");
+            return;
+        }
+        String callId = callInfo.mCallId;
+
+        int id = -1;
+        try {
+            id = Integer.parseInt(callId);
+        } catch (NumberFormatException e) {
+            Rlog.d(IMSRIL_LOG_TAG, "Invite participants failed: id is not integer: "
+                                   + callId);
+            return;
+        }
+
+        internalAddConferenceMember(confCallId, callInfo.mCallNum, id, response);
     }
 
     /**
@@ -2064,9 +2033,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     */
     @Override
     public void hangupAllCall(Message result) {
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_HANGUP_ALL, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_HANGUP_ALL, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -2077,7 +2046,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.hangupAll(rr.mSerial);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "hangupAll", e);
+                handleMtkRadioProxyExceptionForRR(rr, "hangupAll", e);
             }
         }
     }
@@ -2111,9 +2080,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void sendWfcProfileInfo(int wfcPreference, Message response) {
 
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_WFC_PROFILE, response,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_WFC_PROFILE, response,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -2125,7 +2094,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.setWfcProfile(rr.mSerial, wfcPreference);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setWfcProfile", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setWfcProfile", e);
             }
         }
     }
@@ -2155,10 +2124,10 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     public void dial(String address, int clirMode, UUSInfo uusInfo,
             Message response) {
 
-        IRadio radioProxy = getRadioProxy(response);
-        if (radioProxy != null) {
-            if (!PhoneNumberUtils.isUriNumber(address)) {
-                RILRequest rr = obtainRequest(RIL_REQUEST_IMS_DIAL, response,
+        if (!PhoneNumberUtils.isUriNumber(address)) {
+            IRadio radioProxy = getRadioProxy(response);
+            if (radioProxy != null) {
+                RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_IMS_DIAL, response,
                         mRILDefaultWorkSource);
                 Dial dialInfo = new Dial();
                 dialInfo.address = convertNullToEmptyString(address);
@@ -2180,8 +2149,11 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
                     handleRadioProxyExceptionForRR(rr, "dial", e);
                 }
             }
-            else {
-                RILRequest rr = obtainRequest(RIL_REQUEST_DIAL_WITH_SIP_URI, response,
+        }
+        else {
+            IMtkRadioEx radioProxy = getMtkRadioProxy(response);
+            if (radioProxy != null) {
+                RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_DIAL_WITH_SIP_URI, response,
                         mRILDefaultWorkSource);
 
                 if (IMS_RILA_LOGD) {
@@ -2191,29 +2163,21 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
                 try {
                     radioProxy.dialWithSipUri(rr.mSerial, address);
                 } catch (RemoteException | RuntimeException e) {
-                    handleRadioProxyExceptionForRR(rr, "dialWithSipUri", e);
+                    handleMtkRadioProxyExceptionForRR(rr, "dialWithSipUri", e);
                 }
             }
         }
     }
 
-    /**
-     * Emergency Dial
-     * @param address Phone Address
-     * @param clirMode CLIR Mode
-     * @param USSInfo Uss Information
-     * @param response Response object
-     */
-    @Override
-    public void emergencyDial(String address, int clirMode, UUSInfo uusInfo,
-            Message response) {
-
-        IRadio radioProxy = getRadioProxy(response);
+    private void emergencyDial(String address, ImsCallProfile callprofile,
+                               int clirMode, UUSInfo uusInfo, Message result) {
+        IRadio radioProxy = getRadioProxy(result);
+        // IRadio V1.4
+        android.hardware.radio.V1_4.IRadio radioProxy14 =
+                (android.hardware.radio.V1_4.IRadio) radioProxy;
         if (radioProxy != null) {
-
-            RILRequest rr = obtainRequest(RIL_REQUEST_IMS_EMERGENCY_DIAL, response,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_IMS_EMERGENCY_DIAL, result,
                     mRILDefaultWorkSource);
-
             Dial dialInfo = new Dial();
             dialInfo.address = convertNullToEmptyString(address);
             dialInfo.clir = clirMode;
@@ -2229,8 +2193,13 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
                 // Do not log function arg for privacy
                 riljLog(rr.serialString() + "> " + requestToString(rr.mRequest));
             }
+
+
             try {
-                radioProxy.emergencyDial(rr.mSerial, dialInfo);
+                radioProxy14.emergencyDial(rr.mSerial, dialInfo,
+                        callprofile.getEmergencyServiceCategories(),
+                        (ArrayList) callprofile.getEmergencyUrns(),
+                        callprofile.getEmergencyCallRouting(), false, false);
             } catch (RemoteException | RuntimeException e) {
                 handleRadioProxyExceptionForRR(rr, "emergencyDial", e);
             }
@@ -2254,9 +2223,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             return;
         }
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_CONFERENCE_DIAL, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_CONFERENCE_DIAL, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -2271,7 +2240,8 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             for (String dialNumber : participants) {
                 dialInfo.dialNumbers.add(dialNumber);
                 if (IMS_RILA_LOGD) {
-                    riljLog("conferenceDial: dialNumber " + dialNumber);
+                    riljLog("conferenceDial: dialNumber " +
+                            ImsServiceCallTracker.sensitiveEncode(dialNumber));
                 }
             }
 
@@ -2279,35 +2249,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
                 radioProxy.conferenceDial(rr.mSerial, dialInfo);
             } catch (RemoteException | RuntimeException e) {
                 Rlog.w(IMSRIL_LOG_TAG, "conferenceDial failed");
-                handleRadioProxyExceptionForRR(rr, "conferenceDial", e);
-            }
-        }
-    }
-
-    /**
-     * MTK Proprietary API
-     * Set Emergency Call Service Category
-     * @param serviceCategory Service Category
-     * @param result Response Object
-     */
-    @Override
-    public void setEccServiceCategory(int serviceCategory, Message response) {
-
-        IRadio radioProxy = getRadioProxy(response);
-        if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_ECC_SERVICE_CATEGORY,
-                    response, mRILDefaultWorkSource);
-
-            if (IMS_RILA_LOGD) {
-                riljLog(rr.serialString()
-                        + ">  " + requestToString(rr.mRequest) + " serviceCategory = "
-                        + serviceCategory);
-            }
-
-            try {
-                radioProxy.setEccServiceCategory(rr.mSerial, serviceCategory);
-            } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setEccServiceCategory", e);
+                handleMtkRadioProxyExceptionForRR(rr, "conferenceDial", e);
             }
         }
     }
@@ -2325,10 +2267,10 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     public void vtDial(String address, int clirMode, UUSInfo uusInfo,
             Message response) {
 
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
             if (!PhoneNumberUtils.isUriNumber(address)) {
-                RILRequest rr = obtainRequest(RIL_REQUEST_IMS_VT_DIAL, response,
+                RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_IMS_VT_DIAL, response,
                         mRILDefaultWorkSource);
                 Dial dialInfo = new Dial();
                 dialInfo.address = convertNullToEmptyString(address);
@@ -2347,11 +2289,11 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
                 try {
                     radioProxy.vtDial(rr.mSerial, dialInfo);
                 } catch (RemoteException | RuntimeException e) {
-                    handleRadioProxyExceptionForRR(rr, "vtDial", e);
+                    handleMtkRadioProxyExceptionForRR(rr, "vtDial", e);
                 }
             }
             else {
-                RILRequest rr = obtainRequest(RIL_REQUEST_VT_DIAL_WITH_SIP_URI, response,
+                RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_VT_DIAL_WITH_SIP_URI, response,
                         mRILDefaultWorkSource);
 
                 if (IMS_RILA_LOGD) {
@@ -2361,7 +2303,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
                 try {
                     radioProxy.vtDialWithSipUri(rr.mSerial, address);
                 } catch (RemoteException | RuntimeException e) {
-                    handleRadioProxyExceptionForRR(rr, "vtDialWithSipUri", e);
+                    handleMtkRadioProxyExceptionForRR(rr, "vtDialWithSipUri", e);
                 }
             }
         }
@@ -2370,38 +2312,36 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     /**
      * MTK Proprietary API
      * Send/cancel USSI RIL request
-     * @param action Action
      * @param ussiString USSI
      * @param response Response object
      */
     @Override
-    public void sendUSSI(int action, String ussiString, Message response) {
+    public void sendUSSI(String ussiString, Message response) {
 
         if (SystemProperties.get("persist.vendor.ims.ussi.ap").equals("1")) {
             if (IMS_RILA_LOGD) {
-                riljLog("Wrap sendUSSI, action = " + action + " ussiString = "
-                                                   + ussiString);
+                riljLog("Wrap sendUSSI, ussiString = " + ussiString);
             }
 
             response.sendToTarget();
             return;
         }
 
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SEND_USSI, response,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SEND_USSI, response,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
                 riljLog(rr.serialString()
-                        + ">  " + requestToString(rr.mRequest) + " action = " + action
+                        + ">  " + requestToString(rr.mRequest)
                         + " ussiString = " + ussiString);
             }
 
             try {
-                radioProxy.sendUssi(rr.mSerial, action, ussiString);
+                radioProxy.sendUssi(rr.mSerial, ussiString);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "sendUssi", e);
+                handleMtkRadioProxyExceptionForRR(rr, "sendUssi", e);
             }
         }
     }
@@ -2423,9 +2363,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             return;
         }
 
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_CANCEL_USSI, response,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_CANCEL_USSI, response,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -2436,7 +2376,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.cancelUssi(rr.mSerial);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "cancelUssi", e);
+                handleMtkRadioProxyExceptionForRR(rr, "cancelUssi", e);
             }
         }
     }
@@ -2678,9 +2618,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
      */
     @Override
     public void setCLIP(int clipEnable, Message result) {
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_CLIP, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_CLIP, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -2691,7 +2631,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.setClip(rr.mSerial, clipEnable);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setCLIP", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setCLIP", e);
             }
         }
     }
@@ -2702,9 +2642,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
      */
     @Override
     public void getCOLR(Message result) {
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_GET_COLR, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_GET_COLR, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -2714,7 +2654,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.getColr(rr.mSerial);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "getCOLR", e);
+                handleMtkRadioProxyExceptionForRR(rr, "getCOLR", e);
             }
         }
     }
@@ -2725,9 +2665,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
      */
     @Override
     public void setCOLR(int colrEnable, Message result) {
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_COLR, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_COLR, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -2738,7 +2678,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.setColr(rr.mSerial, colrEnable);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setCOLR", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setCOLR", e);
             }
         }
     }
@@ -2749,9 +2689,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
      */
     @Override
     public void getCOLP(Message result) {
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_GET_COLP, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_GET_COLP, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -2761,7 +2701,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.getColp(rr.mSerial);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "getCOLP", e);
+                handleMtkRadioProxyExceptionForRR(rr, "getCOLP", e);
             }
         }
     }
@@ -2772,9 +2712,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
      */
     @Override
     public void setCOLP(int colpEnable, Message result) {
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_COLP, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_COLP, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -2785,7 +2725,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.setColp(rr.mSerial, colpEnable);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setCOLP", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setCOLP", e);
             }
         }
     }
@@ -2799,9 +2739,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
         String timeSlotBegin = "";
         String timeSlotEnd = "";
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_QUERY_CALL_FORWARD_IN_TIME_SLOT,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_QUERY_CALL_FORWARD_IN_TIME_SLOT,
                     result, mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -2822,7 +2762,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.queryCallForwardInTimeSlotStatus(rr.mSerial, cfInfoEx);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "queryCallForwardInTimeSlotStatus", e);
+                handleMtkRadioProxyExceptionForRR(rr, "queryCallForwardInTimeSlotStatus", e);
             }
         }
     }
@@ -2851,9 +2791,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             }
         }
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_CALL_FORWARD_IN_TIME_SLOT,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_CALL_FORWARD_IN_TIME_SLOT,
                     result, mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -2877,7 +2817,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.setCallForwardInTimeSlot(rr.mSerial, cfInfoEx);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setCallForwardInTimeSlot", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setCallForwardInTimeSlot", e);
 
             }
         }
@@ -2896,9 +2836,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     public void runGbaAuthentication(String nafFqdn, String nafSecureProtocolId,
             boolean forceRun, int netId, Message result) {
 
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_RUN_GBA, result, mRILDefaultWorkSource);
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_RUN_GBA, result, mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
                 riljLog(rr.serialString()
@@ -2913,7 +2853,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
                 radioProxy.runGbaAuthentication(rr.mSerial, nafFqdn, nafSecureProtocolId,
                         forceRun, netId);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "runGbaAuthentication", e);
+                handleMtkRadioProxyExceptionForRR(rr, "runGbaAuthentication", e);
             }
         }
 
@@ -2925,9 +2865,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
      */
     @Override
     public void getXcapStatus(Message result) {
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_GET_XCAP_STATUS, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_GET_XCAP_STATUS, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -2938,7 +2878,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.getXcapStatus(rr.mSerial);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "getXcapStatus", e);
+                handleMtkRadioProxyExceptionForRR(rr, "getXcapStatus", e);
             }
         }
     }
@@ -2949,9 +2889,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
      */
     @Override
     public void resetSuppServ(Message result) {
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_RESET_SUPP_SERV, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_RESET_SUPP_SERV, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -2962,7 +2902,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.resetSuppServ(rr.mSerial);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "getXcapStatus", e);
+                handleMtkRadioProxyExceptionForRR(rr, "getXcapStatus", e);
             }
         }
     }
@@ -2974,9 +2914,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
      */
     @Override
     public void setupXcapUserAgentString(String userAgent, Message result) {
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SETUP_XCAP_USER_AGENT_STRING, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SETUP_XCAP_USER_AGENT_STRING, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -2988,7 +2928,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.setupXcapUserAgentString(rr.mSerial, userAgent);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setupXcapUserAgentString", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setupXcapUserAgentString", e);
             }
         }
     }
@@ -3028,9 +2968,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void forceHangup(int callId, Message response) {
 
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_FORCE_RELEASE_CALL, response,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_FORCE_RELEASE_CALL, response,
                     mRILDefaultWorkSource);
             if (IMS_RILA_LOGD) {
                 riljLog(rr.serialString() + "> " + requestToString(rr.mRequest)
@@ -3040,7 +2980,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.forceReleaseCall(rr.mSerial, callId);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "forceHangup", e);
+                handleMtkRadioProxyExceptionForRR(rr, "forceHangup", e);
             }
         }
     }
@@ -3048,52 +2988,26 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     /**
      * Send bearer activation done to MD
      * @param aid Bearer Id
+     * @param action of bearer's operation
      * @param status Result of bearer's operation
      * @param response response object
      */
     @Override
-    public void responseBearerActivationDone(int aid, int status, Message response) {
+    public void responseBearerStateConfirm(int aid, int action, int status, Message response) {
 
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_IMS_BEARER_ACTIVATION_DONE,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_IMS_BEARER_STATE_CONFIRM,
                     response, mRILDefaultWorkSource);
             if (IMS_RILA_LOGD) {
                 riljLog(rr.serialString() + "> " + requestToString(rr.mRequest)
-                        + " aid = " + aid + " status =" + status);
+                        + " aid = " + aid + " action =" + action + " status =" + status);
             }
 
             try {
-                radioProxy.imsBearerActivationDone(rr.mSerial, aid, status);
+                radioProxy.imsBearerStateConfirm(rr.mSerial, aid, action, status);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "imsBearerActivationDone", e);
-            }
-        }
-    }
-
-
-    /**
-     * Send bearer deactivation done to MD.
-     * @param aid
-     * @param status
-     * @param response
-     */
-    @Override
-    public void responseBearerDeactivationDone(int aid, int status, Message response) {
-
-        IRadio radioProxy = getRadioProxy(response);
-        if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_IMS_BEARER_DEACTIVATION_DONE,
-                    response, mRILDefaultWorkSource);
-            if (IMS_RILA_LOGD) {
-                riljLog(rr.serialString() + "> " + requestToString(rr.mRequest)
-                        + " aid = " + aid + " status =" + status);
-            }
-
-            try {
-                radioProxy.imsBearerDeactivationDone(rr.mSerial, aid, status);
-            } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "imsBearerDeactivationDone", e);
+                handleMtkRadioProxyExceptionForRR(rr, "imsBearerStateConfirm", e);
             }
         }
     }
@@ -3106,9 +3020,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
      */
     @Override
     public void setImsBearerNotification(int enable, Message response) {
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_IMS_BEARER_NOTIFICATION,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_IMS_BEARER_NOTIFICATION,
                     response, mRILDefaultWorkSource);
             if (IMS_RILA_LOGD) {
                 riljLog(rr.serialString() + "> " + requestToString(rr.mRequest)
@@ -3118,7 +3032,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.setImsBearerNotification(rr.mSerial, enable);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setImsBearerNotification", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setImsBearerNotification", e);
             }
         }
     }
@@ -3132,9 +3046,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void pullCall(String target, boolean isVideoCall, Message response) {
 
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_PULL_CALL, response,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_PULL_CALL, response,
                     mRILDefaultWorkSource);
             if (IMS_RILA_LOGD) {
                 riljLog(rr.serialString() + "> " + requestToString(rr.mRequest)
@@ -3145,7 +3059,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.pullCall(rr.mSerial, target, isVideoCall);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "pullCall", e);
+                handleMtkRadioProxyExceptionForRR(rr, "pullCall", e);
             }
         }
     }
@@ -3159,9 +3073,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void setImsRegistrationReport(Message response) {
 
-        IRadio radioProxy = getRadioProxy(null);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(null);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_IMS_REGISTRATION_REPORT,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_IMS_REGISTRATION_REPORT,
                     response, mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -3171,7 +3085,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.setImsRegistrationReport(rr.mSerial);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setImsRegistrationReport", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setImsRegistrationReport", e);
             }
         }
     }
@@ -3186,9 +3100,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Override
     public void setImsRtpInfo(int pdnId, int networkId, int timer, Message response) {
 
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_IMS_RTP_REPORT, response,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_IMS_RTP_REPORT, response,
                     mRILDefaultWorkSource);
             if (IMS_RILA_LOGD) {
                 riljLog(rr.serialString() + "> " + requestToString(rr.mRequest)
@@ -3199,7 +3113,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.setImsRtpReport(rr.mSerial, pdnId, networkId, timer);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setImsRtpReport", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setImsRtpReport", e);
             }
         }
     }
@@ -3211,9 +3125,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
      */
     @Override
     public void setVoiceDomainPreference(int vdp, Message response) {
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SET_VOICE_DOMAIN_PREFERENCE, response,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_VOICE_DOMAIN_PREFERENCE, response,
                     mRILDefaultWorkSource);
             if (IMS_RILA_LOGD) {
                 riljLog(rr.serialString() + "> " + requestToString(rr.mRequest) + " vdp = " + vdp);
@@ -3222,7 +3136,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.setVoiceDomainPreference(rr.mSerial, vdp);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "setVoiceDomainPreference", e);
+                handleMtkRadioProxyExceptionForRR(rr, "setVoiceDomainPreference", e);
             }
         }
     }
@@ -3241,23 +3155,23 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     private void internalAddConferenceMember(int confCallId, String address,
             int callIdToAdd, Message response) {
 
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_ADD_IMS_CONFERENCE_CALL_MEMBER,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_ADD_IMS_CONFERENCE_CALL_MEMBER,
                     response, mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
                 riljLog(rr.serialString()
                         + ">  " + requestToString(rr.mRequest) + " confCallId = "
-                        + confCallId + " address = " + address + " callIdToAdd ="
-                        + callIdToAdd);
+                        + confCallId + " address = " + ImsServiceCallTracker.sensitiveEncode(address)
+                        + " callIdToAdd =" + callIdToAdd);
             }
 
             try {
-                radioProxy.addImsConferenceCallMember(rr.mSerial, confCallId, address,
-                        callIdToAdd);
+                radioProxy.controlImsConferenceCallMember(rr.mSerial,
+                        ImsRILConstants.CONTROL_MEMBER_ADD, confCallId, address, callIdToAdd);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "addImsConferenceCallMember", e);
+                handleMtkRadioProxyExceptionForRR(rr, "addImsConferenceCallMember", e);
             }
         }
     }
@@ -3272,23 +3186,23 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     private void internalRemoveConferenceMember(int confCallId, String address,
             int callIdToRemove, Message response) {
 
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_REMOVE_IMS_CONFERENCE_CALL_MEMBER,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_REMOVE_IMS_CONFERENCE_CALL_MEMBER,
                     response, mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
                 riljLog(rr.serialString()
                         + ">  " + requestToString(rr.mRequest) + " confCallId = "
-                        + confCallId + " address = " + address + " callIdToRemove ="
-                        + callIdToRemove);
+                        + confCallId + " address = " + ImsServiceCallTracker.sensitiveEncode(address)
+                        + " callIdToRemove =" + callIdToRemove);
             }
 
             try {
-                radioProxy.removeImsConferenceCallMember(rr.mSerial, confCallId, address,
-                        callIdToRemove);
+                radioProxy.controlImsConferenceCallMember(rr.mSerial,
+                        ImsRILConstants.CONTROL_MEMBER_REMOVE, confCallId, address, callIdToRemove);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "removeImsConferenceCallMember", e);
+                handleMtkRadioProxyExceptionForRR(rr, "removeImsConferenceCallMember", e);
             }
         }
     }
@@ -3301,10 +3215,10 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
      */
     private void internalImsEct(String number, int type, Message response) {
 
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
             RILRequest rr = obtainRequest(
-                    RIL_REQUEST_IMS_ECT, response, mRILDefaultWorkSource);
+                    ImsRILConstants.RIL_REQUEST_IMS_ECT, response, mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
                 riljLog(rr.serialString() + "> " + requestToString(rr.mRequest));
@@ -3313,7 +3227,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.imsEctCommand(rr.mSerial, number, type);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "imsEctCommand", e);
+                handleMtkRadioProxyExceptionForRR(rr, "imsEctCommand", e);
             }
         }
     }
@@ -3515,6 +3429,20 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
         }
     }
 
+    /**
+         * This is a helper function to be called when a RadioIndication callback is called.
+         * It takes care of acquiring wakelock and sending ack if needed.
+         * @param indicationType RadioIndicationType received
+         */
+    void processMtkIndication(int indicationType) {
+        if (indicationType == RadioIndicationType.UNSOLICITED_ACK_EXP) {
+            sendMtkAck();
+            //if (IMSRIL_LOGD) riljLog("Unsol response received; Sending ack to ril.cpp");
+        } else {
+            // ack is not expected to be sent back. Nothing is required to be done here.
+        }
+    }
+
     void processRequestAck(int serial) {
         RILRequest rr;
         synchronized (mRequestList) {
@@ -3539,7 +3467,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
      * @param responseInfo RadioResponseInfo received in response callback
      * @return RILRequest corresponding to the response
      */
-    RILRequest processResponse(RadioResponseInfo responseInfo) {
+    RILRequest processResponse(RadioResponseInfo responseInfo, boolean isProprietary) {
         int serial = responseInfo.serial;
         int error = responseInfo.error;
         int type = responseInfo.type;
@@ -3572,7 +3500,11 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
         addToRilHistogram(rr);
 
         if (type == RadioResponseType.SOLICITED_ACK_EXP) {
-            sendAck();
+            if (isProprietary) {
+                sendMtkAck();
+            } else {
+                sendAck();
+            }
             if (ImsRILAdapter.IMS_RILA_LOGD) {
                 riljLog("Response received for " + rr.serialString() + " "
                         + requestToString(rr.mRequest) + " Sending ack to ril.cpp");
@@ -3586,7 +3518,7 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
         // screen when the pin or puk is entered incorrectly.
         switch (rr.mRequest) {
             case RIL_REQUEST_SHUTDOWN:
-                setRadioState(RadioState.RADIO_UNAVAILABLE);
+                setRadioState(TelephonyManager.RADIO_POWER_UNAVAILABLE);
                 break;
         }
 
@@ -3609,12 +3541,11 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     void processResponseDone(RILRequest rr, RadioResponseInfo responseInfo, Object ret) {
         if (responseInfo.error == 0) {
             if (IMS_RILA_LOGD) {
-                if (rr.mRequest != RIL_REQUEST_IMS_CONFIG_SET_FEATURE &&
-                        rr.mRequest != RIL_REQUEST_IMS_CONFIG_GET_FEATURE &&
-                        rr.mRequest != RIL_REQUEST_IMS_CONFIG_SET_PROVISION &&
-                        rr.mRequest != RIL_REQUEST_IMS_CONFIG_GET_PROVISION &&
-                        rr.mRequest != RIL_REQUEST_IMS_CONFIG_SET_RESOURCE_CAP &&
-                        rr.mRequest != RIL_REQUEST_IMS_CONFIG_GET_RESOURCE_CAP) {
+                if (rr.mRequest != ImsRILConstants.RIL_REQUEST_IMS_CONFIG_SET_FEATURE &&
+                        rr.mRequest != ImsRILConstants.RIL_REQUEST_IMS_CONFIG_GET_FEATURE &&
+                        rr.mRequest != ImsRILConstants.RIL_REQUEST_IMS_CONFIG_SET_PROVISION &&
+                        rr.mRequest != ImsRILConstants.RIL_REQUEST_IMS_CONFIG_GET_PROVISION &&
+                        rr.mRequest != ImsRILConstants.RIL_REQUEST_IMS_CONFIG_GET_RESOURCE_CAP) {
                     riljLog(rr.serialString() + "< " + requestToString(rr.mRequest)
                             + " " + retToString(rr.mRequest, ret));
                 }
@@ -3664,6 +3595,28 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             }
         } else {
             Rlog.e(IMSRIL_LOG_TAG, "Error trying to send ack, radioProxy = null");
+        }
+        rr.release();
+    }
+
+    /**
+     * Function to send ack and acquire related wakelock
+     */
+    private void sendMtkAck() {
+        // TODO: Remove rr and clean up acquireWakelock for response and ack
+        RILRequest rr = RILRequest.obtain(RIL_RESPONSE_ACKNOWLEDGEMENT, null,
+                mRILDefaultWorkSource);
+        acquireWakeLock(rr, RIL.FOR_ACK_WAKELOCK);
+        IMtkRadioEx RadioProxy = getMtkRadioProxy(null);
+        if (RadioProxy != null) {
+            try {
+                RadioProxy.responseAcknowledgementMtk();
+            } catch (RemoteException | RuntimeException e) {
+                handleMtkRadioProxyExceptionForRR(rr, "sendMtkAck", e);
+                riljLoge("sendMtkAck: " + e);
+            }
+        } else {
+            Rlog.e(IMSRIL_LOG_TAG, "Error trying to send MTK ack, RadioProxy = null");
         }
         rr.release();
     }
@@ -3737,9 +3690,9 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     public void sendSms(int token, int messageRef, String format, String smsc, boolean isRetry,
             byte[] pdu, Message response) {
 
-        IRadio radioProxy = getRadioProxy(response);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_IMS_SEND_SMS_EX, response,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_IMS_SEND_SMS_EX, response,
                     mRILDefaultWorkSource);
             if (IMS_RILA_LOGD) {
                 riljLog(rr.serialString() + "> " + requestToString(rr.mRequest));
@@ -3769,16 +3722,16 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
                         SmsSession.Event.Format.SMS_FORMAT_3GPP :
                         SmsSession.Event.Format.SMS_FORMAT_3GPP2);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "sendImsGsmSms", e);
+                handleMtkRadioProxyExceptionForRR(rr, "sendImsGsmSms", e);
             }
         }
     }
 
     @Override
     public void acknowledgeLastIncomingGsmSms(boolean success, int cause, Message result) {
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_SMS_ACKNOWLEDGE_EX, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SMS_ACKNOWLEDGE_EX, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -3789,16 +3742,16 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.acknowledgeLastIncomingGsmSmsEx(rr.mSerial, success, cause);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "acknowledgeLastIncomingGsmSms", e);
+                handleMtkRadioProxyExceptionForRR(rr, "acknowledgeLastIncomingGsmSms", e);
             }
         }
     }
 
     @Override
     public void acknowledgeLastIncomingCdmaSmsEx(boolean success, int cause, Message result) {
-        IRadio radioProxy = getRadioProxy(result);
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
         if (radioProxy != null) {
-            RILRequest rr = obtainRequest(RIL_REQUEST_CDMA_SMS_ACKNOWLEDGE_EX, result,
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_CDMA_SMS_ACKNOWLEDGE_EX, result,
                     mRILDefaultWorkSource);
 
             if (IMS_RILA_LOGD) {
@@ -3813,11 +3766,102 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             try {
                 radioProxy.acknowledgeLastIncomingCdmaSmsEx(rr.mSerial, msg);
             } catch (RemoteException | RuntimeException e) {
-                handleRadioProxyExceptionForRR(rr, "acknowledgeLastIncomingCdmaSms", e);
+                handleMtkRadioProxyExceptionForRR(rr, "acknowledgeLastIncomingCdmaSms", e);
             }
         }
     }
     // SMS-END
+
+    // Client API start
+    /**
+     * Set SIP header
+     * @param total
+     * @param index
+     * @param headerCount
+     * @param headerValuePair
+     * @param response
+     */
+    @Override
+    public void setSipHeader(int total, int index, int headerCount,
+            String headerValuePair, Message response) {
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
+        if (radioProxy != null) {
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_SIP_HEADER,
+                    response, mRILDefaultWorkSource);
+
+            if (IMS_RILA_LOGD) {
+                riljLog(rr.serialString() + "> " + requestToString(rr.mRequest));
+            }
+
+            ArrayList<String> arrList = new ArrayList<>();
+            arrList.add(Integer.toString(total));
+            arrList.add(Integer.toString(index));
+            arrList.add(Integer.toString(headerCount));
+            arrList.add(headerValuePair);
+
+            try {
+                radioProxy.setSipHeader(rr.mSerial, arrList);
+            } catch (RemoteException | RuntimeException e) {
+                handleMtkRadioProxyExceptionForRR(rr, "setSipHeader", e);
+            }
+        }
+    }
+
+    /**
+     * Enable SIP header report
+     * @param callId
+     * @param headerType
+     * @param response
+     */
+    @Override
+    public void setSipHeaderReport(String callId, String headerType, Message response) {
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
+        if (radioProxy != null) {
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SIP_HEADER_REPORT, response,
+                    mRILDefaultWorkSource);
+
+            if (IMS_RILA_LOGD) {
+                riljLog(rr.serialString() + "> " + requestToString(rr.mRequest)
+                        + " callId = " + callId + " headerType = " + headerType);
+            }
+
+            ArrayList<String> arrList = new ArrayList<>();
+            arrList.add(callId);
+            arrList.add(headerType);
+
+            try {
+                radioProxy.setSipHeaderReport(rr.mSerial, arrList);
+            } catch (RemoteException | RuntimeException e) {
+                handleMtkRadioProxyExceptionForRR(rr, "setSipHeaderReport", e);
+            }
+        }
+    }
+
+    /**
+     * Set IMS call mode
+     * @param mode
+     * @param response
+     */
+    @Override
+    public void setImsCallMode(int mode, Message response) {
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
+        if (radioProxy != null) {
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_IMS_CALL_MODE, response,
+                    mRILDefaultWorkSource);
+
+            if (IMS_RILA_LOGD) {
+                riljLog(rr.serialString() + "> " + requestToString(rr.mRequest)
+                        + " mode = " + mode);
+            }
+
+            try {
+                radioProxy.setImsCallMode(rr.mSerial, mode);
+            } catch (RemoteException | RuntimeException e) {
+                handleMtkRadioProxyExceptionForRR(rr, "setImsCallMode", e);
+            }
+        }
+    }
+    // Client API End
 
     /**
      * Holds a PARTIAL_WAKE_LOCK whenever
@@ -3993,63 +4037,204 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
         }
     }
 
+    /**
+     * Request RTT Modify Response
+     * RIL_REQUEST_RTT_MODIFY_REQUST_RESPONSE
+     * @param callId Call id
+     * @param result Result
+     * @param response Response object
+     */
+    @Override
+    public void setRttModifyRequestResponse(int callId, int result, Message response) {
+
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
+        if (radioProxy != null) {
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_RTT_MODIFY_REQUST_RESPONSE, response,
+                    mRILDefaultWorkSource);
+
+            if (IMSRIL_LOGD) {
+                riljLog(rr.serialString()
+                        + ">  " + requestToString(rr.mRequest)
+                        + " callId = " + callId + " result = " + result);
+            }
+
+            try {
+                radioProxy.rttModifyRequestResponse(rr.mSerial, callId, result);
+            } catch (RemoteException | RuntimeException e) {
+                handleRadioProxyExceptionForRR(rr, "rttModifyRequestResponse", e);
+            }
+        }
+    }
+
+    /**
+     * Send RTT Modify Request
+     * RIL_REQUEST_SEND_RTT_MODIFY_REQUEST
+     * @param callId Call id
+     * @param newMode New mode
+     * @param response Response object
+     */
+    @Override
+    public void sendRttModifyRequest(int callId, int newMode, Message response) {
+
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
+        if (radioProxy != null) {
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SEND_RTT_MODIFY_REQUEST, response,
+                    mRILDefaultWorkSource);
+
+            if (IMSRIL_LOGD) {
+                riljLog(rr.serialString()
+                        + ">  " + requestToString(rr.mRequest)
+                        + " callId = " + callId + " newMode = " + newMode);
+            }
+
+            try {
+                radioProxy.sendRttModifyRequest(rr.mSerial, callId, newMode);
+            } catch (RemoteException | RuntimeException e) {
+                handleRadioProxyExceptionForRR(rr, "sendRttModifyRequest", e);
+            }
+        }
+
+    }
+
+    /**
+     * Send RTT Text
+     * RIL_REQUEST_SEND_RTT_TEXT
+     * @param callId Call id
+     * @param length Length of text
+     * @param text Text
+     * @param response Response object
+     */
+    @Override
+    public void sendRttText(int callId, String text, int length, Message response) {
+
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
+        if (radioProxy != null) {
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SEND_RTT_TEXT, response,
+                    mRILDefaultWorkSource);
+
+            if (IMSRIL_LOGD) {
+                riljLog(rr.serialString()
+                        + ">  " + requestToString(rr.mRequest)
+                        + " callId = " + callId
+                        + " text = " + text
+                        + " length = " + length);
+            }
+
+            try {
+                radioProxy.sendRttText(rr.mSerial, callId, length, text);
+            } catch (RemoteException | RuntimeException e) {
+                handleRadioProxyExceptionForRR(rr, "sendRttText", e);
+            }
+        }
+    }
+
+    /**
+     * Set RTT Mode
+     * RIL_REQUEST_SET_RTT_MODE
+     * @param mode Mode
+     * @param response Response object
+     */
+    @Override
+    public void setRttMode(int mode, Message response) {
+
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
+        if (radioProxy != null) {
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_RTT_MODE, response,
+                    mRILDefaultWorkSource);
+
+            if (IMSRIL_LOGD) {
+                riljLog(rr.serialString()
+                        + ">  " + requestToString(rr.mRequest)
+                        + " mode = " + mode);
+            }
+
+            try {
+                radioProxy.setRttMode(rr.mSerial, mode);
+            } catch (RemoteException | RuntimeException e) {
+                handleRadioProxyExceptionForRR(rr, "setRttMode", e);
+            }
+        }
+    }
+
+
+
+
     static String responseToString(int response) {
         switch(response) {
             case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "RADIO_STATE_CHANGED";
-            case RIL_UNSOL_CALL_INFO_INDICATION: return "CALL_INFO_INDICATION";
-            case RIL_UNSOL_INCOMING_CALL_INDICATION:
+            case ImsRILConstants.RIL_UNSOL_CALL_INFO_INDICATION: return "CALL_INFO_INDICATION";
+            case ImsRILConstants.RIL_UNSOL_INCOMING_CALL_INDICATION:
                 return "INCOMING_CALL_INDICATION";
-            case RIL_UNSOL_CIPHER_INDICATION: return "CIPHER_INDICATION";
-            case RIL_UNSOL_ECONF_RESULT_INDICATION : return "ECONF_RESULT_INDICATION";
-            case RIL_UNSOL_SIP_CALL_PROGRESS_INDICATOR:
+            case ImsRILConstants.RIL_UNSOL_CIPHER_INDICATION: return "CIPHER_INDICATION";
+            case ImsRILConstants.RIL_UNSOL_ECONF_RESULT_INDICATION : return "ECONF_RESULT_INDICATION";
+            case ImsRILConstants.RIL_UNSOL_SIP_CALL_PROGRESS_INDICATOR:
                 return "SIP_CALL_PROGRESS_INDICATOR";
-            case RIL_UNSOL_CALLMOD_CHANGE_INDICATOR:
+            case ImsRILConstants.RIL_UNSOL_CALLMOD_CHANGE_INDICATOR:
                 return "CALLMOD_CHANGE_INDICATOR";
-            case RIL_UNSOL_VIDEO_CAPABILITY_INDICATOR:
+            case ImsRILConstants.RIL_UNSOL_VIDEO_CAPABILITY_INDICATOR:
                 return "VIDEO_CAPABILITY_INDICATOR";
-            case RIL_UNSOL_ON_USSI: return "ON_USSI";
-            case RIL_UNSOL_GET_PROVISION_DONE: return "GET_PROVISION_DONE";
-            case RIL_UNSOL_IMS_RTP_INFO: return "UNSOL_IMS_RTP_INFO";
-            case RIL_UNSOL_ON_XUI: return "ON_XUI";
-            case RIL_UNSOL_ON_VOLTE_SUBSCRIPTION:
-                return "RIL_UNSOL_ON_VOLTE_SUBSCRIPTION";
-            case RIL_UNSOL_IMS_EVENT_PACKAGE_INDICATION:
+            case ImsRILConstants.RIL_UNSOL_ON_USSI: return "ON_USSI";
+            case ImsRILConstants.RIL_UNSOL_GET_PROVISION_DONE: return "GET_PROVISION_DONE";
+            case ImsRILConstants.RIL_UNSOL_IMS_RTP_INFO: return "UNSOL_IMS_RTP_INFO";
+            case ImsRILConstants.RIL_UNSOL_ON_XUI: return "ON_XUI";
+            case ImsRILConstants.RIL_UNSOL_ON_VOLTE_SUBSCRIPTION:
+                return "ImsRILConstants.RIL_UNSOL_ON_VOLTE_SUBSCRIPTION";
+            case RIL_UNSOL_SUPP_SVC_NOTIFICATION:
+                return "RIL_UNSOL_SUPP_SVC_NOTIFICATION";
+            case ImsRILConstants.RIL_UNSOL_IMS_EVENT_PACKAGE_INDICATION:
                 return "IMS_EVENT_PACKAGE_INDICATION";
-            case RIL_UNSOL_IMS_REGISTRATION_INFO:
+            case ImsRILConstants.RIL_UNSOL_IMS_REGISTRATION_INFO:
                 return "IMS_REGISTRATION_INFO";
-            case RIL_UNSOL_SPEECH_CODEC_INFO : return "SPEECH_CODEC_INFO";
-            case RIL_UNSOL_IMS_ENABLE_DONE: return "IMS_ENABLE_DONE";
-            case RIL_UNSOL_IMS_DISABLE_DONE: return "IMS_DISABLE_DONE";
-            case RIL_UNSOL_IMS_ENABLE_START: return "IMS_ENABLE_START";
-            case RIL_UNSOL_IMS_DISABLE_START: return "IMS_DISABLE_START";
-            case RIL_UNSOL_IMS_DEREG_DONE: return "IMS_DEREG_DONE";
-            case RIL_UNSOL_ECT_INDICATION: return "ECT_INDICATION";
-            case RIL_UNSOL_VOLTE_SETTING: return "VOLTE_SETTING";
-            case RIL_UNSOL_IMS_BEARER_ACTIVATION:
-                return "IMS_BEARER_ACTIVATION";
-            case RIL_UNSOL_IMS_BEARER_DEACTIVATION:
-                return "IMS_BEARER_DEACTIVATION";
-            case RIL_UNSOL_IMS_BEARER_INIT: return "RIL_UNSOL_IMS_BEARER_INIT";
-            case RIL_UNSOL_IMS_DATA_INFO_NOTIFY: return "RIL_UNSOL_IMS_DATA_INFO_NOTIFY";	
-            case RIL_UNSOL_IMS_MULTIIMS_COUNT: return "IMS_MULTIIMS_COUNT";
-            case RIL_UNSOL_IMS_CONFIG_DYNAMIC_IMS_SWITCH_COMPLETE:
+            case ImsRILConstants.RIL_UNSOL_SPEECH_CODEC_INFO : return "SPEECH_CODEC_INFO";
+            case ImsRILConstants.RIL_UNSOL_IMS_ENABLE_DONE: return "IMS_ENABLE_DONE";
+            case ImsRILConstants.RIL_UNSOL_IMS_DISABLE_DONE: return "IMS_DISABLE_DONE";
+            case ImsRILConstants.RIL_UNSOL_IMS_ENABLE_START: return "IMS_ENABLE_START";
+            case ImsRILConstants.RIL_UNSOL_IMS_DISABLE_START: return "IMS_DISABLE_START";
+            case ImsRILConstants.RIL_UNSOL_IMS_DEREG_DONE: return "IMS_DEREG_DONE";
+            case ImsRILConstants.RIL_UNSOL_ECT_INDICATION: return "ECT_INDICATION";
+            case ImsRILConstants.RIL_UNSOL_VOLTE_SETTING: return "VOLTE_SETTING";
+            case ImsRILConstants.RIL_UNSOL_IMS_BEARER_STATE_NOTIFY: return "IMS_BEARER_STATE_NOTIFY";
+            case ImsRILConstants.RIL_UNSOL_IMS_BEARER_INIT: return "RIL_UNSOL_IMS_BEARER_INIT";
+            case ImsRILConstants.RIL_UNSOL_IMS_DATA_INFO_NOTIFY: return "RIL_UNSOL_IMS_DATA_INFO_NOTIFY";
+            case ImsRILConstants.RIL_UNSOL_IMS_MULTIIMS_COUNT: return "IMS_MULTIIMS_COUNT";
+            case ImsRILConstants.RIL_UNSOL_IMS_CONFIG_DYNAMIC_IMS_SWITCH_COMPLETE:
                 return "DYNAMIC_IMS_SWITCH_COMPLETE";
-            case RIL_UNSOL_IMS_CONFIG_CONFIG_CHANGED:
+            case ImsRILConstants.RIL_UNSOL_IMS_CONFIG_CONFIG_CHANGED:
                 return "IMS_CONFIG_CHANGED";
-            case RIL_UNSOL_IMS_CONFIG_FEATURE_CHANGED:
+            case ImsRILConstants.RIL_UNSOL_IMS_CONFIG_FEATURE_CHANGED:
                 return "IMS_FEATURE_CHANGED";
-            case RIL_UNSOL_IMS_CONFIG_CONFIG_LOADED:
+            case ImsRILConstants.RIL_UNSOL_IMS_CONFIG_CONFIG_LOADED:
                 return "IMS_CONFIG_LOADED";
-            case RIL_UNSOL_RESPONSE_NEW_SMS_STATUS_REPORT_EX:
+            case ImsRILConstants.RIL_UNSOL_RESPONSE_NEW_SMS_STATUS_REPORT_EX:
                 return "RIL_UNSOL_RESPONSE_NEW_SMS_STATUS_REPORT_EX";
-            case RIL_UNSOL_RESPONSE_NEW_SMS_EX:
+            case ImsRILConstants.RIL_UNSOL_RESPONSE_NEW_SMS_EX:
                 return "RIL_UNSOL_RESPONSE_NEW_SMS_EX";
-            case RIL_UNSOL_RESPONSE_CDMA_NEW_SMS_EX:
+            case ImsRILConstants.RIL_UNSOL_RESPONSE_CDMA_NEW_SMS_EX:
                 return "UNSOL_CDMA_NEW_SMS_EX";
-            case RIL_UNSOL_NO_EMERGENCY_CALLBACK_MODE:
+            case ImsRILConstants.RIL_UNSOL_NO_EMERGENCY_CALLBACK_MODE:
                 return "RIL_UNSOL_NO_EMERGENCY_CALLBACK_MODE";
-            case RIL_UNSOL_INCOMING_CALL_ADDITIONAL_INFO:
-                return "RIL_UNSOL_INCOMING_CALL_ADDITIONAL_INFO";
+            case ImsRILConstants.RIL_UNSOL_IMS_CONFERENCE_INFO_INDICATION:
+                return "RIL_UNSOL_IMS_CONFERENCE_INFO_INDICATION";
+            case ImsRILConstants.RIL_UNSOL_LTE_MESSAGE_WAITING_INDICATION:
+                return "RIL_UNSOL_LTE_MESSAGE_WAITING_INDICATION";
+            case ImsRILConstants.RIL_UNSOL_IMS_DIALOG_INDICATION:
+                return "RIL_UNSOL_IMS_DIALOG_INDICATION";
+            case ImsRILConstants.RIL_UNSOL_RTT_MODIFY_RESPONSE:
+                return "RIL_UNSOL_RTT_MODIFY_RESPONSE";
+            case ImsRILConstants.RIL_UNSOL_RTT_TEXT_RECEIVE:
+                return "RIL_UNSOL_RTT_TEXT_RECEIVE";
+            case ImsRILConstants.RIL_UNSOL_RTT_CAPABILITY_INDICATION:
+                return "RIL_UNSOL_RTT_CAPABILITY_INDICATION";
+            case ImsRILConstants.RIL_UNSOL_RTT_MODIFY_REQUEST_RECEIVE:
+                return "RIL_UNSOL_RTT_MODIFY_REQUEST_RECEIVE";
+            case ImsRILConstants.RIL_UNSOL_AUDIO_INDICATION:
+                return "RIL_UNSOL_AUDIO_INDICATION";
+            case ImsRILConstants.RIL_UNSOL_VOPS_INDICATION:
+                return "RIL_UNSOL_VOPS_INDICATION";
+            case ImsRILConstants.RIL_UNSOL_CALL_ADDITIONAL_INFO:
+                return "RIL_UNSOL_CALL_ADDITIONAL_INFO";
+            case ImsRILConstants.RIL_UNSOL_SIP_HEADER:
+                return "RIL_UNSOL_SIP_HEADER";
             default: return "<unknown response>" + String.valueOf(response);
         }
     }
@@ -4067,73 +4252,68 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             case RIL_REQUEST_EXPLICIT_CALL_TRANSFER: return "EXPLICIT_CALL_TRANSFER";
             case RIL_REQUEST_GET_ACTIVITY_INFO: return "GET_ACTIVITY_INFO";
             case RIL_REQUEST_HANGUP: return "HANGUP";
-            case RIL_REQUEST_HANGUP_WITH_REASON: return "HANGUP_WITH_REASON";
+            case ImsRILConstants.RIL_REQUEST_HANGUP_WITH_REASON: return "HANGUP_WITH_REASON";
+            case ImsRILConstants.RIL_REQUEST_HANGUP_ALL: return "HANGUP_ALL";
             case RIL_REQUEST_LAST_CALL_FAIL_CAUSE: return "LAST_CALL_FAIL_CAUSE";
             case RIL_REQUEST_SET_MUTE: return "SET_MUTE";
             case RIL_REQUEST_SHUTDOWN: return "SHUTDOWN";
             case RIL_REQUEST_SWITCH_WAITING_OR_HOLDING_AND_ACTIVE:
                 return "SWITCH_WAITING_OR_HOLDING_AND_ACTIVE";
-            case RIL_REQUEST_SET_IMS_ENABLE: return "SET_IMS_ENABLE";
-            case RIL_REQUEST_SET_VOLTE_ENABLE: return "SET_VOLTE_ENABLE";
-            case RIL_REQUEST_SET_WFC_ENABLE: return "SET_WFC_ENABLE";
-            case RIL_REQUEST_SET_VILTE_ENABLE: return "SET_VILTE_ENABLE";
-            case RIL_REQUEST_SET_VIWIFI_ENABLE: return "SET_VIWIFI_ENABLE";
-            case RIL_REQUEST_SET_IMS_VOICE_ENABLE: return "SET_IMS_VOICE_ENABLE";
-            case RIL_REQUEST_SET_IMS_VIDEO_ENABLE: return "SET_IMS_VIDEO_ENABLE";
-            case RIL_REQUEST_VIDEO_CALL_ACCEPT: return "VIDEO_CALL_ACCEPT";
-            case RIL_REQUEST_SET_IMSCFG: return "SET_IMSCFG";
-            case RIL_REQUEST_GET_PROVISION_VALUE: return "GET_PROVISION_VALUE";
-            case RIL_REQUEST_SET_PROVISION_VALUE: return "SET_PROVISION_VALUE";
-            case RIL_REQUEST_IMS_CONFIG_SET_FEATURE:
+            case ImsRILConstants.RIL_REQUEST_SET_IMS_ENABLE: return "SET_IMS_ENABLE";
+            case ImsRILConstants.RIL_REQUEST_SET_VOLTE_ENABLE: return "SET_VOLTE_ENABLE";
+            case ImsRILConstants.RIL_REQUEST_SET_WFC_ENABLE: return "SET_WFC_ENABLE";
+            case ImsRILConstants.RIL_REQUEST_SET_VILTE_ENABLE: return "SET_VILTE_ENABLE";
+            case ImsRILConstants.RIL_REQUEST_SET_VIWIFI_ENABLE: return "SET_VIWIFI_ENABLE";
+            case ImsRILConstants.RIL_REQUEST_SET_IMS_VIDEO_ENABLE: return "SET_IMS_VIDEO_ENABLE";
+            case ImsRILConstants.RIL_REQUEST_VIDEO_CALL_ACCEPT: return "VIDEO_CALL_ACCEPT";
+            case ImsRILConstants.RIL_REQUEST_ECC_REDIAL_APPROVE: return "ECC_REDIAL_APPROVE";
+            case ImsRILConstants.RIL_REQUEST_SET_IMSCFG: return "SET_IMSCFG";
+            case ImsRILConstants.RIL_REQUEST_GET_PROVISION_VALUE: return "GET_PROVISION_VALUE";
+            case ImsRILConstants.RIL_REQUEST_SET_PROVISION_VALUE: return "SET_PROVISION_VALUE";
+            case ImsRILConstants.RIL_REQUEST_IMS_CONFIG_SET_FEATURE:
                 return "IMS_CONFIG_SET_FEATURE";
-            case RIL_REQUEST_IMS_CONFIG_GET_FEATURE:
+            case ImsRILConstants.RIL_REQUEST_IMS_CONFIG_GET_FEATURE:
                 return "IMS_CONFIG_GET_FEATURE";
-            case RIL_REQUEST_IMS_CONFIG_SET_PROVISION:
+            case ImsRILConstants.RIL_REQUEST_IMS_CONFIG_SET_PROVISION:
                 return "IMS_CONFIG_SET_PROVISION";
-            case RIL_REQUEST_IMS_CONFIG_GET_PROVISION:
+            case ImsRILConstants.RIL_REQUEST_IMS_CONFIG_GET_PROVISION:
                 return "IMS_CONFIG_GET_PROVISION";
-            case RIL_REQUEST_IMS_CONFIG_SET_RESOURCE_CAP:
-                return "IMS_CONFIG_SET_RESOURCE_CAP";
-            case RIL_REQUEST_IMS_CONFIG_GET_RESOURCE_CAP:
+            case ImsRILConstants.RIL_REQUEST_IMS_CONFIG_GET_RESOURCE_CAP:
                 return "IMS_CONFIG_GET_RESOURCE_CAP";
-            case RIL_REQUEST_IMS_BEARER_ACTIVATION_DONE:
-                return "IMS_BEARER_ACTIVATION_DONE";
-            case RIL_REQUEST_IMS_BEARER_DEACTIVATION_DONE:
-                return "IMS_BEARER_DEACTIVATION_DONE";
-            case RIL_REQUEST_SET_IMS_BEARER_NOTIFICATION:
+            case ImsRILConstants.RIL_REQUEST_IMS_BEARER_STATE_CONFIRM:
+                return "IMS_BEARER_STATE_CONFIRM";
+            case ImsRILConstants.RIL_REQUEST_SET_IMS_BEARER_NOTIFICATION:
                 return "RIL_REQUEST_SET_IMS_BEARER_NOTIFICATION";
-            case RIL_REQUEST_IMS_DEREG_NOTIFICATION: return "IMS_DEREG_NOTIFICATION";
-            case RIL_REQUEST_IMS_ECT: return "IMS_ECT";
-            case RIL_REQUEST_HOLD_CALL: return "HOLD_CALL";
-            case RIL_REQUEST_RESUME_CALL: return "RESUME_CALL";
-            case RIL_REQUEST_SET_ECC_SERVICE_CATEGORY:
-                return "SET_ECC_SERVICE_CATEGORY";
-            case RIL_REQUEST_SET_ECC_LIST: return "SET_ECC_LIST";
-            case RIL_REQUEST_VT_DIAL_WITH_SIP_URI: return "VT_DIAL_WITH_SIP_URI";
-            case RIL_REQUEST_SEND_USSI: return "SEND_USSI";
-            case RIL_REQUEST_CANCEL_USSI: return "CANCEL_USSI";
-            case RIL_REQUEST_SET_WFC_PROFILE: return "SET_WFC_PROFILE";
-            case RIL_REQUEST_SET_IMS_REGISTRATION_REPORT:
+            case ImsRILConstants.RIL_REQUEST_IMS_DEREG_NOTIFICATION: return "IMS_DEREG_NOTIFICATION";
+            case ImsRILConstants.RIL_REQUEST_IMS_ECT: return "IMS_ECT";
+            case ImsRILConstants.RIL_REQUEST_HOLD_CALL: return "HOLD_CALL";
+            case ImsRILConstants.RIL_REQUEST_RESUME_CALL: return "RESUME_CALL";
+            case ImsRILConstants.RIL_REQUEST_SET_ECC_LIST: return "SET_ECC_LIST";
+            case ImsRILConstants.RIL_REQUEST_VT_DIAL_WITH_SIP_URI: return "VT_DIAL_WITH_SIP_URI";
+            case ImsRILConstants.RIL_REQUEST_SEND_USSI: return "SEND_USSI";
+            case ImsRILConstants.RIL_REQUEST_CANCEL_USSI: return "CANCEL_USSI";
+            case ImsRILConstants.RIL_REQUEST_SET_WFC_PROFILE: return "SET_WFC_PROFILE";
+            case ImsRILConstants.RIL_REQUEST_SET_IMS_REGISTRATION_REPORT:
                 return "SET_IMS_REGISTRATION_REPORT";
-            case RIL_REQUEST_PULL_CALL: return "PULL_CALL";
-            case RIL_REQUEST_IMS_DIAL: return "IMS_DIAL";
-            case RIL_REQUEST_IMS_VT_DIAL: return "IMS_VT_DIAL";
-            case RIL_REQUEST_IMS_EMERGENCY_DIAL: return "IMS_EMERGENCY_DIAL";
-            case RIL_REQUEST_SET_IMS_RTP_REPORT: return "RIL_REQUEST_SET_IMS_RTP_REPORT";
-            case RIL_REQUEST_CONFERENCE_DIAL: return "RIL_REQUEST_CONFERENCE_DIAL";
-            case RIL_REQUEST_ADD_IMS_CONFERENCE_CALL_MEMBER:
+            case ImsRILConstants.RIL_REQUEST_PULL_CALL: return "PULL_CALL";
+            case ImsRILConstants.RIL_REQUEST_IMS_DIAL: return "IMS_DIAL";
+            case ImsRILConstants.RIL_REQUEST_IMS_VT_DIAL: return "IMS_VT_DIAL";
+            case ImsRILConstants.RIL_REQUEST_IMS_EMERGENCY_DIAL: return "IMS_EMERGENCY_DIAL";
+            case ImsRILConstants.RIL_REQUEST_SET_IMS_RTP_REPORT: return "ImsRILConstants.RIL_REQUEST_SET_IMS_RTP_REPORT";
+            case ImsRILConstants.RIL_REQUEST_CONFERENCE_DIAL: return "RIL_REQUEST_CONFERENCE_DIAL";
+            case ImsRILConstants.RIL_REQUEST_ADD_IMS_CONFERENCE_CALL_MEMBER:
                 return "RIL_REQUEST_ADD_IMS_CONFERENCE_CALL_MEMBER";
-            case RIL_REQUEST_REMOVE_IMS_CONFERENCE_CALL_MEMBER:
+            case ImsRILConstants.RIL_REQUEST_REMOVE_IMS_CONFERENCE_CALL_MEMBER:
                 return "RIL_REQUEST_REMOVE_IMS_CONFERENCE_CALL_MEMBER";
-            case RIL_REQUEST_SET_CALL_INDICATION:
+            case ImsRILConstants.RIL_REQUEST_SET_CALL_INDICATION:
                 return "RIL_REQUEST_SET_CALL_INDICATION";
-            case RIL_REQUEST_SET_VOICE_DOMAIN_PREFERENCE:
+            case ImsRILConstants.RIL_REQUEST_SET_VOICE_DOMAIN_PREFERENCE:
                 return "RIL_REQUEST_SET_VOICE_DOMAIN_PREFERENCE";
-            case RIL_REQUEST_SET_MD_IMSCFG: return "RIL_REQUEST_SET_MD_IMSCFG";
+            case ImsRILConstants.RIL_REQUEST_SET_MD_IMSCFG: return "ImsRILConstants.RIL_REQUEST_SET_MD_IMSCFG";
             // SMS-START
-            case RIL_REQUEST_IMS_SEND_SMS_EX: return "RIL_REQUEST_IMS_SEND_SMS_EX";
-            case RIL_REQUEST_SMS_ACKNOWLEDGE_EX: return "RIL_REQUEST_SMS_ACKNOWLEDGE_EX";
-            case RIL_REQUEST_CDMA_SMS_ACKNOWLEDGE_EX: return "CDMA_SMS_ACKNOWLEDGE_EX";
+            case ImsRILConstants.RIL_REQUEST_IMS_SEND_SMS_EX: return "RIL_REQUEST_IMS_SEND_SMS_EX";
+            case ImsRILConstants.RIL_REQUEST_SMS_ACKNOWLEDGE_EX: return "RIL_REQUEST_SMS_ACKNOWLEDGE_EX";
+            case ImsRILConstants.RIL_REQUEST_CDMA_SMS_ACKNOWLEDGE_EX: return "CDMA_SMS_ACKNOWLEDGE_EX";
             // SMS-END
             //MTK-START SS
             case RIL_REQUEST_QUERY_CALL_FORWARD_STATUS: return "QUERY_CALL_FORWARD_STATUS";
@@ -4146,21 +4326,44 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
             case RIL_REQUEST_SET_FACILITY_LOCK: return "SET_FACILITY_LOCK";
             case RIL_REQUEST_CHANGE_BARRING_PASSWORD: return "CHANGE_BARRING_PASSWORD";
             case RIL_REQUEST_QUERY_CLIP: return "QUERY_CLIP";
-            case RIL_REQUEST_SET_CLIP: return "SET_CLIP";
-            case RIL_REQUEST_GET_COLP: return "GET_COLP";
-            case RIL_REQUEST_SET_COLP: return "SET_COLP";
-            case RIL_REQUEST_GET_COLR: return "GET_COLR";
-            case RIL_REQUEST_SET_COLR: return "SET_COLR";
-            case RIL_REQUEST_QUERY_CALL_FORWARD_IN_TIME_SLOT:
+            case ImsRILConstants.RIL_REQUEST_SET_CLIP: return "SET_CLIP";
+            case ImsRILConstants.RIL_REQUEST_GET_COLP: return "GET_COLP";
+            case ImsRILConstants.RIL_REQUEST_SET_COLP: return "SET_COLP";
+            case ImsRILConstants.RIL_REQUEST_GET_COLR: return "GET_COLR";
+            case ImsRILConstants.RIL_REQUEST_SET_COLR: return "SET_COLR";
+            case ImsRILConstants.RIL_REQUEST_QUERY_CALL_FORWARD_IN_TIME_SLOT:
                 return "QUERY_CALL_FORWARD_IN_TIME_SLOT";
-            case RIL_REQUEST_SET_CALL_FORWARD_IN_TIME_SLOT: return "SET_CALL_FORWARD_IN_TIME_SLOT";
-            case RIL_REQUEST_RUN_GBA: return "RIL_REQUEST_RUN_GBA";
-            case RIL_REQUEST_GET_XCAP_STATUS: return "RIL_REQUEST_GET_XCAP_STATUS";
-            case RIL_REQUEST_RESET_SUPP_SERV: return "RIL_REQUEST_RESET_SUPP_SERV";
-            case RIL_REQUEST_SETUP_XCAP_USER_AGENT_STRING: return "SETUP_XCAP_USER_AGENT_STRING";
+            case ImsRILConstants.RIL_REQUEST_SET_CALL_FORWARD_IN_TIME_SLOT: return "SET_CALL_FORWARD_IN_TIME_SLOT";
+            case ImsRILConstants.RIL_REQUEST_RUN_GBA: return "RIL_REQUEST_RUN_GBA";
+            case ImsRILConstants.RIL_REQUEST_GET_XCAP_STATUS: return "RIL_REQUEST_GET_XCAP_STATUS";
+            case ImsRILConstants.RIL_REQUEST_RESET_SUPP_SERV: return "RIL_REQUEST_RESET_SUPP_SERV";
+            case ImsRILConstants.RIL_REQUEST_SETUP_XCAP_USER_AGENT_STRING: return "SETUP_XCAP_USER_AGENT_STRING";
             //MTK-END SS
-            case RIL_REQUEST_SET_RCS_UA_ENABLE: return "RIL_REQUEST_SET_RCS_UA_ENABLE";
+            case ImsRILConstants.RIL_REQUEST_SET_RCS_UA_ENABLE: return "RIL_REQUEST_SET_RCS_UA_ENABLE";
             //MTK-START END
+            case ImsRILConstants.RIL_REQUEST_SET_RTT_MODE:
+                return "RIL_REQUEST_SET_RTT_MODE";
+            case ImsRILConstants.RIL_REQUEST_SEND_RTT_MODIFY_REQUEST:
+                return "RIL_REQUEST_SEND_RTT_MODIFY_REQUEST";
+            case ImsRILConstants.RIL_REQUEST_SEND_RTT_TEXT:
+                return "RIL_REQUEST_SEND_RTT_TEXT";
+            case ImsRILConstants.RIL_REQUEST_RTT_MODIFY_REQUST_RESPONSE:
+                return "RIL_REQUEST_RTT_MODIFY_REQUST_RESPONSE";
+            case ImsRILConstants.RIL_REQUEST_QUERY_VOPS_STATUS: return "RIL_REQUEST_QUERY_VOPS_STATUS";
+            //Client API Start
+            case ImsRILConstants.RIL_REQUEST_SET_SIP_HEADER:
+                return "RIL_REQUEST_SET_SIP_HEADER";
+            case ImsRILConstants.RIL_REQUEST_SIP_HEADER_REPORT:
+                return "RIL_REQUEST_SIP_HEADER_REPORT";
+            case ImsRILConstants.RIL_REQUEST_SET_IMS_CALL_MODE:
+                return "RIL_REQUEST_SET_IMS_CALL_MODE";
+            case ImsRILConstants.RIL_REQUEST_QUERY_SSAC_STATUS:
+                return "RIL_REQUEST_QUERY_SSAC_STATUS";
+            case ImsRILConstants.RIL_REQUEST_TOGGLE_RTT_AUDIO_INDICATION:
+                return "RIL_REQUEST_TOGGLE_RTT_AUDIO_INDICATION";
+            //Client API End
+            case ImsRILConstants.RIL_REQUEST_SET_CALL_ADDITIONAL_INFO:
+                return "RIL_REQUEST_SET_CALL_ADDITIONAL_INFO";
             default: return "<unknown request>: " + String.valueOf(request);
         }
     }
@@ -4274,27 +4477,14 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
 
     @Override
     @Deprecated
-    public void responseBearerActivationDone(int phoneid, int aid, int status) {
-        responseBearerActivationDone(aid, status, null);
-    }
-
-    @Override
-    @Deprecated
-    public void responseBearerDeactivationDone(int phoneid, int aid, int status) {
-        responseBearerDeactivationDone(aid, status, null);
+    public void responseBearerStateConfirm(int phoneid, int aid, int action, int status) {
+        responseBearerStateConfirm(aid, action, status, null);
     }
 
     @Override
     @Deprecated
     public void setImsBearerNotification(int phoneid, int enable) {
         setImsBearerNotification(enable, null);
-    }
-
-    @Override
-    @Deprecated
-    public void start(String callee, int clirMode, boolean isEmergency,
-            boolean isVideoCall, int phoneid, Message response) {
-        start(callee, clirMode, isEmergency, isVideoCall, response);
     }
 
     @Override
@@ -4386,6 +4576,135 @@ public final class ImsRILAdapter extends ImsBaseCommands implements ImsCommandsI
     @Deprecated
     public void setCallIndication(int mode, int callId, int seqNum, int cause) {
         setCallIndication(mode, callId, seqNum, cause, null);
+    }
+
+    private void resetMtkProxyAndRequestList() {
+        mMtkRadioProxy = null;
+
+        // increment the cookie so that death notification can be ignored
+        mMtkRadioProxyCookie.incrementAndGet();
+
+        setRadioState(TelephonyManager.RADIO_POWER_UNAVAILABLE);
+
+        RILRequest.resetSerial();
+        // Clear request list on close
+        clearRequestList(RADIO_NOT_AVAILABLE, false);
+
+        // todo: need to get service right away so setResponseFunctions() can be called for
+        // unsolicited indications. getService() is not a blocking call, so it doesn't help to call
+        // it here. Current hack is to call getService() on death notification after a delay.
+    }
+
+    private IMtkRadioEx getMtkRadioProxy(Message result) {
+        if (!mIsMobileNetworkSupported) {
+            if (IMSRIL_LOGV) riljLog("getRadioProxy: Not calling getService(): wifi-only");
+            return null;
+        }
+
+        if (mMtkRadioProxy != null) {
+            return mMtkRadioProxy;
+        }
+
+        try {
+            mMtkRadioProxy = IMtkRadioEx.getService(
+                    MTK_IMS_HIDL_SERVICE_NAME[mPhoneId == null ? 0 : mPhoneId], false);
+            if (mMtkRadioProxy != null) {
+                mMtkRadioProxy.linkToDeath(mMtkRadioProxyDeathRecipient,
+                        mMtkRadioProxyCookie.incrementAndGet());
+
+                mMtkRadioProxy.setResponseFunctionsIms(mImsRadioResponse, mImsRadioIndication);
+            } else {
+                riljLoge("getMtkRadioProxy: mMtkRadioProxy == null");
+            }
+        } catch (RemoteException | RuntimeException e) {
+            mRadioProxy = null;
+            riljLoge("getMtkRadioProxy getService/setResponseFunctions: " + e);
+        }
+
+        if (mMtkRadioProxy == null) {
+            if (result != null) {
+                AsyncResult.forMessage(result, null,
+                        CommandException.fromRilErrno(RADIO_NOT_AVAILABLE));
+                result.sendToTarget();
+            }
+        }
+
+        return mMtkRadioProxy;
+    }
+
+    public void queryVopsStatus(Message result) {
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
+        if (radioProxy != null) {
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_QUERY_VOPS_STATUS, result,
+                    mRILDefaultWorkSource);
+
+            try {
+                radioProxy.queryVopsStatus(rr.mSerial);
+            } catch (RemoteException | RuntimeException e) {
+                handleRadioProxyExceptionForRR(rr, "queryVopsStatus", e);
+            }
+        }
+    }
+
+    public void notifyImsServiceReady() {
+        IMtkRadioEx radioProxy = getMtkRadioProxy(null);
+        if (radioProxy != null) {
+            try {
+                radioProxy.notifyImsServiceReady();
+            } catch (RemoteException | RuntimeException e) {
+                riljLoge("notifyImsServiceReady error: " + e);
+            }
+        }
+    }
+
+    public void querySsacStatus(Message result) {
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
+        if (radioProxy != null) {
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_QUERY_SSAC_STATUS, result,
+                    mRILDefaultWorkSource);
+
+            try {
+                radioProxy.querySsacStatus(rr.mSerial);
+            } catch (RemoteException | RuntimeException e) {
+                handleRadioProxyExceptionForRR(rr, "queryVopsStatus", e);
+            }
+        }
+    }
+
+    public void toggleRttAudioIndication(int callId, int enable, Message response) {
+        IMtkRadioEx radioProxy = getMtkRadioProxy(response);
+        if (radioProxy != null) {
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_TOGGLE_RTT_AUDIO_INDICATION,
+                    response, mRILDefaultWorkSource);
+            if (IMSRIL_LOGD) {
+                riljLog(rr.serialString() + ">  " + requestToString(rr.mRequest)
+                        + " callId = " + callId + " enable = " + enable);
+            }
+
+            try {
+                radioProxy.toggleRttAudioIndication(rr.mSerial, callId, enable);
+            } catch (RemoteException | RuntimeException e) {
+                handleRadioProxyExceptionForRR(rr, "toggleRttAudioIndication", e);
+            }
+        }
+    }
+
+    public void setCallAdditionalInfo(ArrayList<String> info, Message result) {
+        IMtkRadioEx radioProxy = getMtkRadioProxy(result);
+        if (radioProxy != null) {
+            RILRequest rr = obtainRequest(ImsRILConstants.RIL_REQUEST_SET_CALL_ADDITIONAL_INFO,
+                    result, mRILDefaultWorkSource);
+
+            if (IMS_RILA_LOGD) {
+                riljLog(rr.serialString() + "> " + requestToString(rr.mRequest));
+            }
+
+            try {
+                radioProxy.setCallAdditionalInfo(rr.mSerial, info);
+            } catch (RemoteException | RuntimeException e) {
+                handleRadioProxyExceptionForRR(rr, "setCallAdditionalInfo", e);
+            }
+        }
     }
 }
 

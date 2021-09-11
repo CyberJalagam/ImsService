@@ -15,15 +15,20 @@ endif
 LOCAL_JAVA_LIBRARIES += telephony-common
 LOCAL_JAVA_LIBRARIES += ims-common
 LOCAL_JAVA_LIBRARIES += mediatek-common
+LOCAL_JAVA_LIBRARIES += mediatek-ims-base
+
+LOCAL_STATIC_JAVA_LIBRARIES += android-support-v4
+LOCAL_STATIC_JAVA_LIBRARIES += WfoService
 LOCAL_STATIC_JAVA_LIBRARIES += wfo-common
+LOCAL_STATIC_JAVA_LIBRARIES += android.hardware.radio-V1.0-java
+LOCAL_STATIC_JAVA_LIBRARIES += android.hardware.radio-V1.4-java
+LOCAL_STATIC_JAVA_LIBRARIES += vendor.mediatek.hardware.mtkradioex-V1.0-java
+LOCAL_STATIC_JAVA_LIBRARIES += vendor.mediatek.hardware.mtkradioex-V1.6-java
 LOCAL_STATIC_JAVA_LIBRARIES += vendor.mediatek.hardware.radio-V3.0-java
 LOCAL_STATIC_JAVA_LIBRARIES += vendor.mediatek.hardware.radio-V3.6-java
 LOCAL_STATIC_JAVA_LIBRARIES += vendor.mediatek.hardware.radio-V3.11-java
-LOCAL_STATIC_JAVA_LIBRARIES += vendor.mediatek.hardware.radio-V3.13-java
 LOCAL_STATIC_JAVA_LIBRARIES += vendor.mediatek.hardware.imsa-V1.0-java
 LOCAL_STATIC_JAVA_LIBRARIES += vendor.mediatek.hardware.netdagent-V1.0-java
-LOCAL_STATIC_JAVA_LIBRARIES += mediatek-ims-fundament-telephony-base
-LOCAL_STATIC_JAVA_LIBRARIES += mediatek-ims-fundament-telephony
 
 LOCAL_PACKAGE_NAME := ImsService
 LOCAL_PRIVATE_PLATFORM_APIS := true
@@ -46,7 +51,7 @@ LOCAL_SRC_FILES:= src/com/mediatek/ims/config/ConfigRegister.java \
                   src/com/mediatek/ims/config/ImsConfigSettings.java \
                   src/com/mediatek/ims/config/Register.java \
 
-LOCAL_JAVA_LIBRARIES := ims-common mediatek-telephony-base
+LOCAL_JAVA_LIBRARIES := ims-common mediatek-ims-base
 
 include $(BUILD_STATIC_JAVA_LIBRARY)
 

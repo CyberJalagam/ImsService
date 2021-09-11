@@ -48,7 +48,6 @@ import com.mediatek.ims.SipMessage;
 public interface OpImsCallSessionProxy {
     void broadcastForNotRingingMtIfRequired(boolean sipSessionProgress, int state, int serviceId,
             String callNumber, Context context);
-    void setEmergencyCallConfig(Object imsRILAdapter, String dialString);
     void deviceSwitch(Object imsRILAdapter, String number, String deviceId, Message response);
     void cancelDeviceSwitch(Object imsRILAdapter);
     void handleDeviceSwitchResponse(IMtkImsCallSession imsCallSession, AsyncResult result);

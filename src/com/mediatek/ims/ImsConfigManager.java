@@ -44,6 +44,7 @@ import android.content.res.Resources;
 import android.os.Build;
 import android.os.RemoteException;
 import android.os.SystemProperties;
+import android.telephony.Rlog;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -70,7 +71,6 @@ import com.mediatek.ims.MtkImsConstants;
 import com.mediatek.ims.plugin.ExtensionFactory;
 import com.mediatek.ims.plugin.ImsManagerOemPlugin;
 import com.mediatek.ims.ril.ImsCommandsInterface;
-import com.mediatek.internal.telephony.RadioCapabilitySwitchUtil;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -111,7 +111,7 @@ public class ImsConfigManager {
                 int phoneId = intent.getIntExtra(PhoneConstants.PHONE_KEY, -1);
                 String simState = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
 
-                Log.d(LOG_TAG, "DYNAMIC_IMS_SWITCH_TRIGGER phoneId:" + phoneId +
+                Rlog.d(LOG_TAG, "DYNAMIC_IMS_SWITCH_TRIGGER phoneId:" + phoneId +
                             ", simState:" + simState);
 
                 // Should update ImsResCapability value in ImsConfig for different phoneId
@@ -147,7 +147,7 @@ public class ImsConfigManager {
     };
 
     public ImsConfigManager(Context context, ImsCommandsInterface [] imsRILAdapters) {
-        if (DEBUG) Log.d(LOG_TAG, "ImsConfigManager Enter");
+        if (DEBUG) Rlog.d(LOG_TAG, "ImsConfigManager Enter");
 
         mContext = context;
         mImsRILAdapters = imsRILAdapters;
@@ -176,7 +176,7 @@ public class ImsConfigManager {
 
         configAdapter = getImsConfigAdapter(mContext, mImsRILAdapters, phoneId);
 
-        if (DEBUG) Log.d(LOG_TAG, "init ImsConfigImpl phoneId:" + phoneId);
+        if (DEBUG) Rlog.d(LOG_TAG, "init ImsConfigImpl phoneId:" + phoneId);
         synchronized (mImsConfigInstanceMap) {
             imsConfigImpl = new ImsConfigImpl(mContext, mImsRILAdapters[phoneId], configAdapter,
                     phoneId);
@@ -222,7 +222,7 @@ public class ImsConfigManager {
 
         configAdapter = getImsConfigAdapter(mContext, mImsRILAdapters, phoneId);
 
-        if (DEBUG) Log.d(LOG_TAG, "initEx ImsConfigImpl phoneId:" + phoneId);
+        if (DEBUG) Rlog.d(LOG_TAG, "initEx ImsConfigImpl phoneId:" + phoneId);
         synchronized (mImsConfigInstanceMap) {
             imsConfigImpl = new ImsConfigImpl(mContext, mImsRILAdapters[phoneId], configAdapter,
                     phoneId);
@@ -231,7 +231,7 @@ public class ImsConfigManager {
         }
 
         if (DEBUG)
-            Log.d(LOG_TAG, "initEx MtkImsConfigImpl phoneId:" + phoneId);
+            Rlog.d(LOG_TAG, "initEx MtkImsConfigImpl phoneId:" + phoneId);
         synchronized (mMtkImsConfigInstanceMap) {
             instanceEx = new MtkImsConfigImpl(mContext, mImsRILAdapters[phoneId], instance,
                     configAdapter, phoneId);
@@ -289,7 +289,7 @@ public class ImsConfigManager {
             if (mImsConfigAdapterMap.containsKey(phoneId)) {
                 configAdapter = mImsConfigAdapterMap.get(phoneId);
             } else {
-                if (DEBUG) Log.d(LOG_TAG, "init ImsConfigAdapter phone:" + phoneId);
+                if (DEBUG) Rlog.d(LOG_TAG, "init ImsConfigAdapter phone:" + phoneId);
                 configAdapter = new ImsConfigAdapter(context, imsRilAdapters[phoneId], phoneId);
                 mImsConfigAdapterMap.put(phoneId, configAdapter);
             }
@@ -310,14 +310,14 @@ public class ImsConfigManager {
         if (!"1".equals(SystemProperties.get("persist.vendor.mtk_dynamic_ims_switch"))) {
             if (simState.equalsIgnoreCase(IccCardConstants.INTENT_VALUE_ICC_ABSENT) ||
                     simState.equalsIgnoreCase(IccCardConstants.INTENT_VALUE_ICC_LOADED)) {
-                Log.d(LOG_TAG, "updateImsServiceConfig after SIM event, phoneId:" + phoneId);
+                Rlog.d(LOG_TAG, "updateImsServiceConfig after SIM event, phoneId:" + phoneId);
                 // Force update IMS feature values after SIM event.
                 updateImsServiceConfig(context, phoneId);
             }
             return;
         }
 
-        Log.d(LOG_TAG, "get MtkImsConfigImpl of phone " + phoneId);
+        Rlog.d(LOG_TAG, "get MtkImsConfigImpl of phone " + phoneId);
         imsConfig = getEx(phoneId);
 
         try {
@@ -326,7 +326,7 @@ public class ImsConfigManager {
             int wfcResVal;
 
             if (simState.equalsIgnoreCase(IccCardConstants.INTENT_VALUE_ICC_ABSENT)) {
-                Log.w(LOG_TAG, "setImsResCapability to volte only w/o SIM on phone " + phoneId);
+                Rlog.w(LOG_TAG, "setImsResCapability to volte only w/o SIM on phone " + phoneId);
                 // Back to volte only w/o SIM card.
                 volteResVal = ImsConfig.FeatureValueConstants.ON;
                 vilteResVal = ImsConfig.FeatureValueConstants.OFF;
@@ -349,7 +349,7 @@ public class ImsConfigManager {
 
                     mccMnc = OperatorUtils.getSimOperatorNumericForPhone(phoneId);
                     if (mccMnc == null || mccMnc.isEmpty()) {
-                        Log.w(LOG_TAG, "Invalid mccMnc:" + mccMnc);
+                        Rlog.w(LOG_TAG, "Invalid mccMnc:" + mccMnc);
                         return;
                     }
 
@@ -357,22 +357,22 @@ public class ImsConfigManager {
                         mcc = Integer.parseInt(mccMnc.substring(0, 3));
                         mnc = Integer.parseInt(mccMnc.substring(3));
                     } catch (NumberFormatException e) {
-                        Log.w(LOG_TAG, "Invalid mccMnc:" + mccMnc);
+                        Rlog.w(LOG_TAG, "Invalid mccMnc:" + mccMnc);
                         return;
                     }
 
-                    Log.d(LOG_TAG, "SIM loaded on phone " + phoneId + " with mcc: " +
+                    Rlog.d(LOG_TAG, "SIM loaded on phone " + phoneId + " with mcc: " +
                             mcc + " mnc: " + mnc);
 
                     int subId = SubscriptionManagerHelper.getSubIdUsingPhoneId(phoneId);
                     String iccid = tm.getSimSerialNumber(subId);
                     if (!SENLOG || TELDBG) {
-                        Log.d(LOG_TAG, "check iccid:"+ iccid);
+                        Rlog.d(LOG_TAG, "check iccid:"+ Rlog.pii(LOG_TAG, iccid));
                     }
                     // replace mcc mnc id to 46605 for APTG roaming case
                     if (!TextUtils.isEmpty(iccid)) {
                         if (iccid.startsWith("8988605")) {
-                            if (DEBUG) Log.d(LOG_TAG, "Replace mccmnc for APTG roaming case");
+                            if (DEBUG) Rlog.d(LOG_TAG, "Replace mccmnc for APTG roaming case");
                             mcc = 466;
                             mnc = 5;
                         }
@@ -380,7 +380,7 @@ public class ImsConfigManager {
                         else if (iccid.startsWith("898603") || iccid.startsWith("898611")) {
                             mcc = 460;
                             mnc = 3;
-                            if (DEBUG) Log.d(LOG_TAG, "Replace mccmnc for CT roaming case");
+                            if (DEBUG) Rlog.d(LOG_TAG, "Replace mccmnc for CT roaming case");
                         }
                         /// @}
                     }
@@ -407,13 +407,13 @@ public class ImsConfigManager {
                     }
                 } else {
                     // For test SIM cards, forece enable all IMS functions for lab event.
-                    Log.w(LOG_TAG, "Found test SIM on phone " + phoneId);
+                    Rlog.w(LOG_TAG, "Found test SIM on phone " + phoneId);
                     volteResVal = ImsConfig.FeatureValueConstants.ON;
                     vilteResVal = ImsConfig.FeatureValueConstants.ON;
                     wfcResVal = ImsConfig.FeatureValueConstants.ON;
                 }
 
-                Log.d(LOG_TAG, "Set res capability: volte = " + volteResVal +
+                Rlog.d(LOG_TAG, "Set res capability: volte = " + volteResVal +
                         ", vilte = " + vilteResVal + ", wfc = " + wfcResVal);
 
                 imsConfig.setImsResCapability(
@@ -432,12 +432,12 @@ public class ImsConfigManager {
             Intent mIntent = new Intent(ImsConfigContract.ACTION_DYNAMIC_IMS_SWITCH_COMPLETE);
             mIntent.putExtra(PhoneConstants.PHONE_KEY, phoneId);
             mIntent.putExtra(IccCardConstants.INTENT_KEY_ICC_STATE, simState);
-            context.sendBroadcast(mIntent);
-            Log.d(LOG_TAG, "DYNAMIC_IMS_SWITCH_COMPLETE phoneId:" + phoneId +
+            context.sendBroadcast(mIntent, android.Manifest.permission.READ_PHONE_STATE);
+            Rlog.d(LOG_TAG, "DYNAMIC_IMS_SWITCH_COMPLETE phoneId:" + phoneId +
                         ", simState:" + simState);
 
         } catch (RemoteException e) {
-            Log.e(LOG_TAG, "SetImsCapability fail: " + e);
+            Rlog.e(LOG_TAG, "SetImsCapability fail: " + e);
         }
     }
 
@@ -481,7 +481,7 @@ public class ImsConfigManager {
 
     private void updateImsServiceConfig(Context context, int phoneId) {
         if (mImsManagerOemPlugin == null) {
-            mImsManagerOemPlugin = ExtensionFactory.makeOemPluginFactory()
+            mImsManagerOemPlugin = ExtensionFactory.makeOemPluginFactory(context)
                     .makeImsManagerPlugin(context);
         }
 
@@ -493,7 +493,7 @@ public class ImsConfigManager {
             if (phoneId == getMainCapabilityPhoneId()) {
                 mImsManagerOemPlugin.updateImsServiceConfig(context, phoneId, true);
             } else {
-                if (DEBUG) Log.d(LOG_TAG, "Do not update if phoneId is not main capability");
+                if (DEBUG) Rlog.d(LOG_TAG, "Do not update if phoneId is not main capability");
             }
         }
     }

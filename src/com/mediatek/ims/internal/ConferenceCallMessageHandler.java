@@ -43,6 +43,8 @@ import android.os.SystemProperties;
 import android.text.TextUtils;
 import android.telephony.Rlog;
 
+import com.mediatek.ims.ImsServiceCallTracker;
+
 import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
@@ -308,7 +310,7 @@ public class ConferenceCallMessageHandler extends DefaultHandler {
             return;
         }
         String val = new String(ch, start, length);
-        telLog("Current tag: " + mTag + " val: " + val);
+        telLog("Current tag: " + mTag + " val: " + sensitiveEncode(val));
         // get normal element
         if (mTag.equalsIgnoreCase("maximum-user-count")) {
             setMaxUserCount(val);
@@ -346,10 +348,10 @@ public class ConferenceCallMessageHandler extends DefaultHandler {
             mUser = new User();
             mUser.setIndex(mIndex);
             mUser.setEntity(attributes.getValue("", "entity"));
-            telLog("user - entity: " + mUser.getEntity());
+            telLog("user - entity: " + sensitiveEncode(mUser.getEntity()));
         } else if (qName.equalsIgnoreCase("endpoint")) {
             mUser.setEndPoint(attributes.getValue("", "entity"));
-            telLog("endpoint - entity: " + mUser.getEndPoint());
+            telLog("endpoint - entity: " + sensitiveEncode(mUser.getEndPoint()));
         } else if (qName.equalsIgnoreCase("endpoint")) {
             mUser.setEndPoint(attributes.getValue("", "entity"));
         } else if (qName.equalsIgnoreCase("host-info")) {
@@ -441,6 +443,10 @@ public class ConferenceCallMessageHandler extends DefaultHandler {
 
     private void telLog(String msg) {
         if(!TELDBG) return;
-        Rlog.d("TAG", msg);
+        Rlog.d(TAG, msg);
+    }
+
+    private String sensitiveEncode(String msg) {
+        return ImsServiceCallTracker.sensitiveEncode(msg);
     }
 }

@@ -38,12 +38,15 @@ package com.mediatek.ims.internal;
 // for Data usage
 import android.telephony.TelephonyManager;
 import android.content.Context;
+import android.content.BroadcastReceiver;
+import android.content.Intent;
 import android.net.IConnectivityManager;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkInfo;
 import android.net.NetworkCapabilities;
 import android.net.NetworkStats;
+import android.net.LinkProperties;
 import android.os.INetworkManagementService;
 import android.os.IBinder;
 import android.os.ServiceManager;
@@ -58,7 +61,6 @@ import com.mediatek.ims.common.SubscriptionManagerHelper;
 // for judge if need count usage
 import android.telephony.CarrierConfigManager;
 import android.os.SystemProperties;
-import com.mediatek.internal.telephony.RadioCapabilitySwitchUtil;
 
 import android.os.RegistrantList;
 
@@ -71,48 +73,189 @@ import com.mediatek.ims.internal.ImsVTProviderUtil;
 public class ImsVTUsageManager {
 
     public static class ImsVTUsage {
+        public static final int STATE_TX   = 0x1;
+        public static final int STATE_RX   = 0x2;
+        public static final int STATE_TXRX = STATE_TX | STATE_RX;
 
-        private long                                mLTEUsage;
-        private long                                mWifiUsage;
+        private String mUsedForName;
 
-        public ImsVTUsage() {
-            mLTEUsage = 0;
+        private long mLteUsage;
+        private long mWifiUsage;
+
+        private long mLteTxUsage;
+        private long mLteRxUsage;
+        private long mWifiTxUsage;
+        private long mWifiRxUsage;
+
+        public ImsVTUsage(String name) {
+            mUsedForName = name;
+            mLteUsage = 0;
+            mLteTxUsage = 0;
+            mLteRxUsage = 0;
             mWifiUsage = 0;
+            mWifiTxUsage = 0;
+            mWifiRxUsage = 0;
+
+            Log.d(TAG, "[ImsVTUsage]" + toString());
         }
 
-        public long getLteUsage() {
-            return mLTEUsage;
+        public ImsVTUsage(String name,
+                long lteTx, long lteRx, long lteTxRx,
+                long wifiTx, long wifiRx, long wifiTxRx) {
+            mUsedForName = name;
+
+            mLteTxUsage = lteTx;
+            mLteRxUsage = lteRx;
+            mLteUsage = lteTxRx;
+
+            mWifiTxUsage = wifiTx;
+            mWifiRxUsage = wifiRx;
+            mWifiUsage = wifiTxRx;
+
+            Log.d(TAG, "[ImsVTUsage]" + toString());
         }
 
-        public long getWifiUsage() {
-            return mWifiUsage;
+        public ImsVTUsage(String name,ImsVTUsage usage) {
+            mUsedForName = name;
+
+            mLteTxUsage = usage.getLteUsage(STATE_TX);
+            mLteRxUsage = usage.getLteUsage(STATE_RX);
+            mLteUsage = usage.getLteUsage(STATE_TXRX);
+
+            mWifiTxUsage = usage.getWifiUsage(STATE_TX);
+            mWifiRxUsage = usage.getWifiUsage(STATE_RX);;
+            mWifiUsage = usage.getWifiUsage(STATE_TXRX);;
+
+            Log.d(TAG, "[ImsVTUsage]" + toString());
         }
 
-        public void setLteUsage(long usage) {
-            mLTEUsage = usage;
+        public long getLteUsage(int state) {
+            long usage = 0;
+
+            if (STATE_TX == state) {
+                usage = mLteTxUsage;
+
+            } else if (STATE_RX == state) {
+                usage = mLteRxUsage;
+
+            } else if (STATE_TXRX == state) {
+                usage = mLteUsage;
+            }
+
+            return usage;
         }
 
-        public void setWifiUsage(long usage) {
-            mWifiUsage = usage;
+        public long getWifiUsage(int state) {
+            long usage = 0;
+
+            if (STATE_TX == state) {
+                usage = mWifiTxUsage;
+
+            } else if (STATE_RX == state) {
+                usage = mWifiRxUsage;
+
+            } else if (STATE_TXRX == state) {
+                usage = mWifiUsage;
+            }
+
+            return usage;
         }
+
+        public void setLteUsage(int state, long usage) {
+            if (STATE_TX == state) {
+                mLteTxUsage = usage;
+
+            } else if (STATE_RX == state) {
+                mLteRxUsage = usage;
+
+            } else if (STATE_TXRX == state) {
+                mLteUsage = usage;
+            }
+
+            Log.d(TAG, "[setLTEUsage] state: " + state + ", usage: " + usage);
+        }
+
+        public void setWifiUsage(int state, long usage) {
+            if (STATE_TX == state) {
+                mWifiTxUsage = usage;
+
+            } else if (STATE_RX == state) {
+                mWifiRxUsage = usage;
+
+            } else if (STATE_TXRX == state) {
+                mWifiUsage = usage;
+            }
+
+            Log.d(TAG, "[setWifiUsage] state: " + state + ", usage: " + usage);
+        }
+
+        public void setAllUsage(long lteTx, long lteRx, long lteTxRx,
+                long wifiTx, long wifiRx, long wifiTxRx) {
+            mLteTxUsage = lteTx;
+            mLteRxUsage = lteRx;
+            mLteUsage = lteTxRx;
+
+            mWifiTxUsage = wifiTx;
+            mWifiRxUsage = wifiRx;
+            mWifiUsage = wifiTxRx;
+
+            Log.d(TAG, "[setAllUsage]" + toString());
+        }
+
+        public void updateFrom(ImsVTUsage usage) {
+            mLteTxUsage = usage.getLteUsage(STATE_TX);
+            mLteRxUsage = usage.getLteUsage(STATE_RX);
+            mLteUsage = usage.getLteUsage(STATE_TXRX);
+
+            mWifiTxUsage = usage.getWifiUsage(STATE_TX);
+            mWifiRxUsage = usage.getWifiUsage(STATE_RX);
+            mWifiUsage = usage.getWifiUsage(STATE_TXRX);
+
+            Log.d(TAG, "[updateFrom]" + toString());
+        }
+
+        public void subtraction(ImsVTUsage subUsage) {
+            mLteTxUsage = mLteTxUsage - subUsage.getLteUsage(STATE_TX);
+            mLteRxUsage = mLteRxUsage - subUsage.getLteUsage(STATE_RX);
+            mLteUsage = mLteUsage - subUsage.getLteUsage(STATE_TXRX);
+
+            mWifiTxUsage = mWifiTxUsage - subUsage.getWifiUsage(STATE_TX);
+            mWifiRxUsage = mWifiRxUsage - subUsage.getWifiUsage(STATE_RX);
+            mWifiUsage = mWifiUsage - subUsage.getWifiUsage(STATE_TXRX);
+
+            Log.d(TAG, "[subtraction]" + toString());
+        }
+
+        public String toString() {
+            return ("[" + mUsedForName + "] "
+                + "lteTx=" + mLteTxUsage + ", lteRx=" + mLteRxUsage + ", lteTxRx=" + mLteUsage
+                + ", wifiTx=" + mWifiTxUsage + ", wifiRx=" + mWifiRxUsage + ", wifiTxRx=" + mWifiUsage);
+        }
+
     }
 
     static final String                         TAG = "ImsVT Usage";
+
+    public static final int                     VILTE_UID = 1000;
 
     public int                                  mId;
     protected int                               mSimId;
 
     private Context                             mContext;
 
+    // Usage when call init
     private ImsVTUsage                          mInitialUsage;
-    private ImsVTUsage                          mUsage;
+    private ImsVTUsage                          mCurrentUsage;
+    private ImsVTUsage                          mPreviousUsage;
+
     public ImsVTProviderUtil                    mVTProviderUtil = ImsVTProviderUtil.getInstance();
 
     private boolean                             mNeedReportDataUsage = true;
     private RegistrantList mDataUsageUpdateRegistrants = new RegistrantList();
 
     public ImsVTUsageManager() {
-        mUsage = new ImsVTUsage();
+        mCurrentUsage = new ImsVTUsage("Current");
+        mPreviousUsage = new ImsVTUsage("Previous");
     }
 
     public void setId(int id) {
@@ -149,6 +292,7 @@ public class ImsVTUsageManager {
         ConnectivityManager sConnMgr = (ConnectivityManager) mVTProviderUtil.mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
         Network [] nets = sConnMgr.getAllNetworks();
         NetworkInfo nwInfo;
+        LinkProperties lkProp;
 
         if (null != nets) {
 
@@ -168,9 +312,10 @@ public class ImsVTUsageManager {
                     Log.d(TAG, "[onRequestCallDataUsage] nwInfo:" + nwInfo.toString() +
                             ", checking net=" + net + " cap=" + netCap);
 
-                    if (null != sConnMgr.getLinkProperties(net)) {
+                    lkProp = sConnMgr.getLinkProperties(net);
+                    if (null != lkProp) {
                         if (netCap.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
-                            mActiveWifiIface = sConnMgr.getLinkProperties(net).getInterfaceName();
+                            mActiveWifiIface = lkProp.getInterfaceName();
                             Log.d(TAG, "[onRequestCallDataUsage] mActiveWifiIface=" + mActiveWifiIface);
 
                         } else if (netCap.hasCapability(NetworkCapabilities.NET_CAPABILITY_IMS)) {
@@ -182,7 +327,7 @@ public class ImsVTUsageManager {
                                         subIdStr.length());
                                 continue;
                             }
-                            mActiveImsIface = sConnMgr.getLinkProperties(net).getInterfaceName();
+                            mActiveImsIface = lkProp.getInterfaceName();
                             Log.d(TAG, "[onRequestCallDataUsage] mActiveImsIface=" + mActiveImsIface);
 
                         } else {
@@ -214,21 +359,13 @@ public class ImsVTUsageManager {
             // should use UID_ALL = -1
             NetworkStats uidSnapshot = mNetworkManager.getNetworkStatsUidDetail(UID_ALL, INTERFACES_ALL);
 
-            int VILTE_UID = 1000;
-            long usage_ImsTaginImsInterface = getTaggedSnapshot(uidSnapshot, VILTE_UID, mActiveImsIface, ImsVTProviderUtil.TAG_VILTE_MOBILE + mId);
-            //long usage_WifiTaginImsInterface = getTaggedSnapshot(uidSnapshot, VILTE_UID, mActiveImsIface, ImsVTProviderUtil.TAG_VILTE_WIFI + mId);
-            long usage_WifiTaginWifiInterface = getTaggedSnapshot(uidSnapshot, VILTE_UID, mActiveWifiIface, ImsVTProviderUtil.TAG_VILTE_WIFI + mId);
-
-            mUsage.setLteUsage(usage_ImsTaginImsInterface- mInitialUsage.getLteUsage());
-            mUsage.setWifiUsage(usage_WifiTaginWifiInterface- mInitialUsage.getWifiUsage());
-
-            mVTProviderUtil.usageSet(mId, usage_ImsTaginImsInterface, ImsVTProviderUtil.TAG_VILTE_MOBILE);
-            mVTProviderUtil.usageSet(mId, usage_WifiTaginWifiInterface, ImsVTProviderUtil.TAG_VILTE_WIFI);
+            ImsVTUsage tagUsage = getTagUsage(uidSnapshot, mActiveImsIface, mActiveWifiIface);
+            updateUsage(tagUsage);
 
             Log.d(TAG, "[ID=" + mId + "] [onRequestCallDataUsage] Finish (VIWIFI usage:" +
-                    usage_WifiTaginWifiInterface + ")");
+                    mCurrentUsage.getWifiUsage(ImsVTUsage.STATE_TXRX) + ")");
 
-            return mUsage;
+            return mCurrentUsage;
 
         } catch (RemoteException e) {
             Log.d(TAG, "Exception:" + e);
@@ -278,53 +415,103 @@ public class ImsVTUsageManager {
         }
     }
 
-    // Example of network info file:
-    //
-    //     idx              2
-    //     iface            ccmni1
-    //     acct_tag_hex     0x0
-    //     uid_tag_int      0
-    //     cnt_set          0           // foreground or background
-    //     rx_bytes         3085
-    //     rx_packets       15
-    //     tx_bytes         827
-    //     tx_packets       15
-    //     rx_tcp_bytes     366
-    //     rx_tcp_packets   6
-    //     rx_udp_bytes     2719
-    //     rx_udp_packets   9
-    //     rx_other_bytes   0
-    //     rx_other_packets 0
-    //     tx_tcp_bytes     252
-    //     tx_tcp_packets   6
-    //     tx_udp_bytes     575
-    //     tx_udp_packets   9
-    //     tx_other_bytes   0
-    //     tx_other_packets 0
-    private long getTaggedSnapshot(NetworkStats uidSnapshot, int match_uid, String iface, int tag) {
+    private ImsVTUsage getTagUsage(NetworkStats uidSnapshot, String lte_iface, String wifi_iface) {
+        Log.i(TAG, "getTagUsage uid:" + VILTE_UID + ", LTE iface:" + lte_iface + ", WiFi iface:" + wifi_iface);
 
-        Log.i(TAG, "getTaggedSnapshot match_uid:" + match_uid + ", iface:" + iface + ", tag:" + NetworkStats.tagToString(tag));
+        long TotalLteTxBytes = 0;
+        long TotalLteRxBytes = 0;
+        long TotalWifiTxBytes = 0;
+        long TotalWifiRxBytes = 0;
 
-        long TotalBytes = 0;
         NetworkStats.Entry entry = null;
+
+        int lte_tag = ImsVTProviderUtil.TAG_VILTE_MOBILE + mId;
+        int wifi_tag = ImsVTProviderUtil.TAG_VILTE_WIFI + mId;
 
         for (int j = 0; j < uidSnapshot.size(); j++) {
 
             entry = uidSnapshot.getValues(j, entry);
 
-            if (Objects.equals(entry.iface, iface) && entry.uid == match_uid && entry.tag == tag) {
+            // Get LTE taggedSnapshot
+            if (Objects.equals(entry.iface, lte_iface) && entry.uid == VILTE_UID && entry.tag == lte_tag) {
 
-                Log.i(TAG, "getTaggedSnapshot entry:" + entry.toString());
+                Log.i(TAG, "getTaggedSnapshot LTE entry:" + entry.toString());
 
-                TotalBytes += entry.rxBytes;
-                TotalBytes += entry.txBytes;
-                Log.i(TAG, "getTaggedSnapshot entry.rxBytes:" + Long.toString(entry.rxBytes) +
-                        ", entry.txBytes:" + Long.toString(entry.txBytes));
+                TotalLteTxBytes += entry.txBytes;
+                TotalLteRxBytes += entry.rxBytes;
             }
+
+            // Get WiFi taggedSnapshot
+            if (Objects.equals(entry.iface, wifi_iface) && entry.uid == VILTE_UID && entry.tag == wifi_tag) {
+
+                Log.i(TAG, "getTaggedSnapshot WiFi entry:" + entry.toString());
+
+                TotalWifiTxBytes += entry.txBytes;
+                TotalWifiRxBytes += entry.rxBytes;
+            }
+
         }
-        Log.i(TAG, "TotalBytes:" + Long.toString(TotalBytes));
-        return TotalBytes;
+        Log.i(TAG, "getTaggedSnapshot LTE: Tx=" + Long.toString(TotalLteTxBytes) +
+                    ", Rx=" + Long.toString(TotalLteRxBytes) +
+                    ", Total=" + Long.toString(TotalLteTxBytes + TotalLteRxBytes));
+        Log.i(TAG, "getTaggedSnapshot WiFi: Tx=" + Long.toString(TotalWifiTxBytes) +
+                    ", Rx=" + Long.toString(TotalWifiRxBytes) +
+                    ", Total=" + Long.toString(TotalWifiTxBytes + TotalWifiRxBytes));
+
+        return (new ImsVTUsage("Tag",
+                TotalLteTxBytes, TotalLteRxBytes, TotalLteRxBytes + TotalLteTxBytes,
+                TotalWifiTxBytes, TotalWifiRxBytes, TotalWifiRxBytes + TotalWifiTxBytes));
+    }
+
+    private void updateUsage(ImsVTUsage tagUsage) {
+        int subId = SubscriptionManagerHelper.getSubIdUsingPhoneId(mSimId);
+        TelephonyManager telephony = (TelephonyManager) mVTProviderUtil.mContext.getSystemService(Context.TELEPHONY_SERVICE);
+        String subscriberId = telephony.getSubscriberId(subId);
+
+        long initWifiTxBytes   = mInitialUsage.getWifiUsage(ImsVTUsage.STATE_TX);
+        long initWifiRxBytes   = mInitialUsage.getWifiUsage(ImsVTUsage.STATE_RX);
+        long initWifiTxRxBytes = mInitialUsage.getWifiUsage(ImsVTUsage.STATE_TXRX);
+
+        long curWifiTxBytes   = mCurrentUsage.getWifiUsage(ImsVTUsage.STATE_TX);
+        long curWifiRxBytes   = mCurrentUsage.getWifiUsage(ImsVTUsage.STATE_RX);
+        long curWifiTxRxBytes = mCurrentUsage.getWifiUsage(ImsVTUsage.STATE_TXRX);
+
+        mPreviousUsage.updateFrom(mCurrentUsage);
+
+        // Here are 2 cases will get viwifi usage tagged snapshot 0
+        // Case 1: DUT has not made any viwifi call yet
+        // Case 2: WiFi is off.
+        // For both cases we set viwifi usage as current (means no changed).
+        if (tagUsage.getWifiUsage(ImsVTUsage.STATE_TX) == 0 &&
+            tagUsage.getWifiUsage(ImsVTUsage.STATE_RX) == 0) {
+
+            tagUsage.setWifiUsage(ImsVTUsage.STATE_TX, curWifiTxBytes + initWifiTxBytes);
+            tagUsage.setWifiUsage(ImsVTUsage.STATE_RX, curWifiRxBytes + initWifiRxBytes);
+            tagUsage.setWifiUsage(ImsVTUsage.STATE_TXRX, curWifiTxRxBytes + initWifiTxRxBytes);
+        }
+
+        mVTProviderUtil.usageSet(mId, tagUsage);
+
+        tagUsage.subtraction(mInitialUsage);
+        mCurrentUsage.updateFrom(tagUsage);
+
+        // Send delta usage broadcast
+        ImsVTUsage deltaUsage = new ImsVTUsage("Delta", mCurrentUsage);
+        deltaUsage.subtraction(mPreviousUsage);
+
+        Intent VTUsageIntent = new Intent(mVTProviderUtil.getImsOemCallUtil().getVTUsageAction());
+        VTUsageIntent.putExtra("lterxbytes",  deltaUsage.getLteUsage(ImsVTUsage.STATE_RX));
+        VTUsageIntent.putExtra("ltetxbytes",  deltaUsage.getLteUsage(ImsVTUsage.STATE_TX));
+        VTUsageIntent.putExtra("wifirxbytes", deltaUsage.getWifiUsage(ImsVTUsage.STATE_RX));
+        VTUsageIntent.putExtra("wifiTxbytes", deltaUsage.getWifiUsage(ImsVTUsage.STATE_TX));
+        VTUsageIntent.putExtra("subscriberId", subscriberId);
+        Log.i(TAG, "sendVTusageBroadcast:" +
+                    "  lterxbytes="  + Long.toString(deltaUsage.getLteUsage(ImsVTUsage.STATE_RX)) +
+                    ", ltetxbytes="  + Long.toString(deltaUsage.getLteUsage(ImsVTUsage.STATE_TX)) +
+                    ", wifirxbytes=" + Long.toString(deltaUsage.getWifiUsage(ImsVTUsage.STATE_RX)) +
+                    ", wifiTxbytes=" + Long.toString(deltaUsage.getWifiUsage(ImsVTUsage.STATE_TX)) +
+                    ", subscriberId=" + subscriberId);
+        mVTProviderUtil.mContext.sendBroadcast(VTUsageIntent, mVTProviderUtil.getImsOemCallUtil().getVTUsagePermission());
     }
     //
 }
-

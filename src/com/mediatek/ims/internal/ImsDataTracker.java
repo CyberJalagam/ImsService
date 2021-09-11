@@ -12,6 +12,7 @@ import android.os.HandlerThread;
 import android.os.Message;
 import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
+import android.os.SystemProperties;
 
 import com.mediatek.ims.ImsEventDispatcher;
 import com.mediatek.ims.ImsAdapter.VaEvent;
@@ -81,7 +82,16 @@ public class ImsDataTracker implements ImsEventDispatcher.VaEventDispatcher {
     private int[] mModemImsPdnState;
     private int[] mModemEmergencyPdnState;
     private final Object mPdnStateLock = new Object();
-    private int mIsBearerNotify = 1; //enable: 1, disable: 0
+
+
+    /* Customized IMS and Emergency(EIMS) PDN notify/process rule support
+       0 : DO NOT notify both IMS/EIMS PDN and do NOT request/releaseNetwork in FWK
+       1 or Unset : Notify both IMS/EIMS PDN and do request/releaseNetwork in FWK (Default rule)
+       2 : Notify both IMS/EIMS PDN but do NOT request/releaseNetwork in FWK
+       3 : DO notify IMS PDN and DO request/releaseNetwork in FWK
+           DO NOT notify EIMS PDN and DO NOT request/releaseNetwork in FWK*/
+
+    private int mIsBearerNotify = 1;
 
     public ImsDataTracker(Context context, ImsCommandsInterface [] adapters) {
         mPhoneNum = TelephonyManager.getDefault().getPhoneCount();
@@ -91,16 +101,16 @@ public class ImsDataTracker implements ImsEventDispatcher.VaEventDispatcher {
         mContext = context;
         mImsRILAdapters = adapters;
 
+        getImsPdnNotifyRule();
+
         for(int i = 0; i < mPhoneNum; i++){
             mSynchronizers[i] = new ImsDataSynchronizer(context, this, i);
-            mImsRILAdapters[i].registerForBearerActivation(
-                    mdHander, ImsDataSynchronizer.EVENT_CONNECT, null);
-            mImsRILAdapters[i].registerForBearerDeactivation(
-                    mdHander, ImsDataSynchronizer.EVENT_DISCONNECT, null);
+            mImsRILAdapters[i].registerForBearerState(
+                    mdHander, ImsDataSynchronizer.EVENT_BEARER_STATE_CHANGED, null);
             mImsRILAdapters[i].registerForBearerInit(
                     mdHander, ImsDataSynchronizer.EVENT_MD_RESTART, null);
             mImsRILAdapters[i].registerForImsDataInfoNotify(
-                    mdHander, ImsDataSynchronizer.EVENT_IMS_DATA_INFO, null);			
+                    mdHander, ImsDataSynchronizer.EVENT_IMS_DATA_INFO, null);
             mModemImsPdnState[i] = NetworkInfo.State.UNKNOWN.ordinal();
             mModemEmergencyPdnState[i] = NetworkInfo.State.UNKNOWN.ordinal();
             setImsBearerNotification(i, mIsBearerNotify);
@@ -114,20 +124,15 @@ public class ImsDataTracker implements ImsEventDispatcher.VaEventDispatcher {
         @Override
         synchronized public void handleMessage(Message msg) {
             switch (msg.what) {
-                case ImsDataSynchronizer.EVENT_CONNECT:
-                    onImsBearerChanged((AsyncResult) msg.obj,
-                            ImsDataSynchronizer.EVENT_CONNECT);
-                    break;
-                case ImsDataSynchronizer.EVENT_DISCONNECT:
-                    onImsBearerChanged((AsyncResult) msg.obj,
-                            ImsDataSynchronizer.EVENT_DISCONNECT);
+                case ImsDataSynchronizer.EVENT_BEARER_STATE_CHANGED:
+                    onImsBearerChanged((AsyncResult) msg.obj);
                     break;
                 case ImsDataSynchronizer.EVENT_MD_RESTART:
                     onMdRestart((AsyncResult) msg.obj);
                     break;
                 case ImsDataSynchronizer.EVENT_IMS_DATA_INFO:
                     onImsDataInfo((AsyncResult) msg.obj);
-                    break;					
+                    break;
                 default:
                     loge("not handle the message: " + msg.what);
                     break;
@@ -135,18 +140,44 @@ public class ImsDataTracker implements ImsEventDispatcher.VaEventDispatcher {
         }
     };
 
-    private void onImsBearerChanged(AsyncResult ar, int event) {
+    /* Customized IMS and Emergency(EIMS) PDN notify/process rule support
+       0 : DO NOT notify both IMS/EIMS PDN and do NOT request/releaseNetwork in FWK
+       1 or Unset : Notify both IMS/EIMS PDN and do request/releaseNetwork in FWK (Default rule)
+       2 : Notify both IMS/EIMS PDN but do NOT request/releaseNetwork in FWK
+       3 : DO notify IMS PDN and DO request/releaseNetwork in FWK
+           DO NOT notify EIMS PDN and DO NOT request/releaseNetwork in FWK*/
+    private void getImsPdnNotifyRule(){
+        mIsBearerNotify = SystemProperties.getInt("persist.vendor.radio.ims.pdn.notify", 1);
+        logd("mIsBearerNotify rule set to " + mIsBearerNotify);
+    }
+
+    private void onImsBearerChanged(AsyncResult ar) {
         logd("onImsBearerChanged");
         String[] bearerInfo = (String[]) ar.result;
         if(bearerInfo != null) {
-            if(bearerInfo.length == 3) {
+            if(bearerInfo.length == 4) {
                 logd(Arrays.toString(bearerInfo));
                 int phoneId = Integer.parseInt(bearerInfo[0]);
                 int aid = Integer.parseInt(bearerInfo[1]);
-                String capability = bearerInfo[2];
-                updateModemPdnState(phoneId, capability, event);
-                mSynchronizers[phoneId].notifyMdRequest(
-                            new ImsBearerRequest(aid, phoneId, event, capability));
+                int action = Integer.parseInt(bearerInfo[2]);
+                String capability = bearerInfo[3];
+
+                int event = -1;
+                if (action == ImsDataSynchronizer.ACTION_ACTIVATION) {
+                    event = ImsDataSynchronizer.EVENT_CONNECT;
+                } else if (action == ImsDataSynchronizer.ACTION_DEACTIVATION) {
+                    event = ImsDataSynchronizer.EVENT_DISCONNECT;
+                } else {
+                    loge("unknown action: " + action);
+                }
+
+                if (event >= 0) {
+                    updateModemPdnState(phoneId, capability, event);
+                    if((mIsBearerNotify == 1) || (mIsBearerNotify == 3)) {
+                        mSynchronizers[phoneId].notifyMdRequest(
+                                new ImsBearerRequest(aid, action, phoneId, event, capability));
+                    }
+                }
             } else {
                 loge("parameter format error: " + Arrays.toString(bearerInfo));
             }
@@ -179,7 +210,7 @@ public class ImsDataTracker implements ImsEventDispatcher.VaEventDispatcher {
                     cap = NetworkCapabilities.NET_CAPABILITY_EIMS;
                 } else {
                     cap = NetworkCapabilities.NET_CAPABILITY_IMS;
-            	}
+                }
 
                 // extra info for event "ClearCodes" is the ClearCodes cause value
                 if("ClearCodes".equals(event)){
@@ -194,14 +225,14 @@ public class ImsDataTracker implements ImsEventDispatcher.VaEventDispatcher {
         }
     }
 
-    public void responseBearerConfirm(int event, int aid, int status, int phoneId) {
-        logd("send to MD, aid:" + aid + ", status:" + status + ", phoneId:" + phoneId);
+    public void responseBearerConfirm(int event, int aid, int action, int status, int phoneId) {
+        logd("send to MD, aid:" + aid + ", action:" + action + ", status:" + status + ", phoneId:" + phoneId);
         switch (event) {
             case ImsDataSynchronizer.EVENT_CONNECT:
-                mImsRILAdapters[phoneId].responseBearerActivationDone(aid, status, null);
+                mImsRILAdapters[phoneId].responseBearerStateConfirm(aid, action, status, null);
                 break;
             case ImsDataSynchronizer.EVENT_DISCONNECT:
-                mImsRILAdapters[phoneId].responseBearerDeactivationDone(aid, status, null);
+                mImsRILAdapters[phoneId].responseBearerStateConfirm(aid, action, status, null);
                 break;
         }
     }

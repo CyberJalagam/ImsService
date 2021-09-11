@@ -62,7 +62,9 @@ public class DefaultConferenceHandler {
 
     public boolean isConferenceActive() {return true;}
 
-    public void firstMerge(String num_1, String num_2) {}
+    public void firstMerge(String callId_1, String callId_2, String num_1, String num_2) {}
+
+    public void addFirstMergeParticipant(String callId) {}
 
     public void addLocalCache(String[] participants) {}
 
@@ -74,5 +76,5 @@ public class DefaultConferenceHandler {
 
     public void modifyParticipantFailed() {}
 
-    public String getConfParticipantUri(String addr) {return addr;}
+    public String getConfParticipantUri(String addr, boolean isRtry) {return addr;}
 }

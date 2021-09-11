@@ -53,6 +53,7 @@ import android.os.SystemProperties;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.ImsReasonInfo;
+import android.telephony.ims.ImsCallForwardInfo;
 import android.util.Log;
 
 import java.util.HashMap;
@@ -62,17 +63,20 @@ import java.util.Map;
 import com.android.ims.internal.IImsUt;
 import com.android.ims.ImsUtInterface;
 
+import com.android.internal.telephony.CallForwardInfo;
 import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.CommandsInterface;
 
 import com.mediatek.ims.internal.IMtkImsUt;
 import com.mediatek.ims.internal.IMtkImsUtListener;
 import com.mediatek.ims.internal.ImsXuiManager;
+import com.mediatek.ims.plugin.ExtensionFactory;
+import com.mediatek.ims.plugin.ImsSSOemPlugin;
+import com.mediatek.ims.plugin.ImsSSExtPlugin;
 import com.mediatek.ims.MtkImsCallForwardInfo;
 import com.mediatek.ims.MtkImsReasonInfo;
 import com.mediatek.ims.ril.ImsCommandsInterface;
 import com.mediatek.internal.telephony.MtkCallForwardInfo;
-import com.mediatek.internal.telephony.MtkPhoneConstants;
 import com.mediatek.ims.feature.MtkImsUtImplBase;
 import com.mediatek.ims.feature.MtkImsUtListener;
 
@@ -101,11 +105,14 @@ public class MtkImsUtImpl extends MtkImsUtImplBase {
     private ImsCommandsInterface mImsRILAdapter;
     private ImsService mImsService = null;
     private int mPhoneId = 0;
+    private ImsSSOemPlugin mOemPluginBase;
+    private ImsSSExtPlugin mExtPluginBase;
 
     static final int IMS_UT_EVENT_GET_CF_TIME_SLOT = 1200;
     static final int IMS_UT_EVENT_SET_CF_TIME_SLOT = 1201;
     static final int IMS_UT_EVENT_SET_CB_WITH_PWD  = 1202;
     static final int IMS_UT_EVENT_SETUP_XCAP_USER_AGENT_STRING = 1203;
+    static final int IMS_UT_EVENT_GET_CF_WITH_CLASS  = 1204;
 
     public static MtkImsUtImpl getInstance(Context context, int phoneId, ImsService service) {
         synchronized (sMtkImsUtImpls) {
@@ -149,6 +156,9 @@ public class MtkImsUtImpl extends MtkImsUtImplBase {
         mImsService = imsService;
         mImsRILAdapter = mImsService.getImsRILAdapter(phoneId);
         mPhoneId = phoneId;
+
+        mOemPluginBase = ExtensionFactory.makeOemPluginFactory(mContext).makeImsSSOemPlugin(mContext);
+        mExtPluginBase = ExtensionFactory.makeExtensionPluginFactory(mContext).makeImsSSExtPlugin(mContext);
     }
 
     /**
@@ -270,7 +280,32 @@ public class MtkImsUtImpl extends MtkImsUtImplBase {
     }
 
     public String getXcapConflictErrorMessage() {
-        return mImsUtImpl.getXCAPErrorMessageFromSysProp(CommandException.Error.OEM_ERROR_1);
+        return mOemPluginBase.getXCAPErrorMessageFromSysProp(CommandException.Error.OEM_ERROR_25,
+                mPhoneId);
+    }
+
+    /**
+     * Retrieves the configuration of the call forward.
+     * @param condition Call Forward condition
+     * @param number Forwarded to number
+     * @param serviceClass Call Forward Service Class
+     * @return the request ID
+     */
+    public int queryCFForServiceClass(int condition, String number, int serviceClass) {
+        int requestId;
+
+        synchronized (mLock) {
+            requestId = mImsUtImpl.getAndIncreaseRequestId();
+        }
+        if (DBG) {
+            Log.d(TAG, "queryCFForServiceClass(): requestId = " + requestId);
+        }
+
+        Message msg = mHandler.obtainMessage(IMS_UT_EVENT_GET_CF_WITH_CLASS, requestId, 0, null);
+        mImsRILAdapter.queryCallForwardStatus(mImsUtImpl.getCFReasonFromCondition(condition),
+                serviceClass, number, msg);
+
+        return requestId;
     }
 
     private class ResultHandler extends Handler {
@@ -300,7 +335,8 @@ public class MtkImsUtImpl extends MtkImsUtImplBase {
 
                             ImsReasonInfo reason;
                             if (ar.exception instanceof CommandException) {
-                                reason = mImsUtImpl.commandExceptionToReason((CommandException)(ar.exception));
+                                reason = mOemPluginBase.commandExceptionToReason(
+                                        (CommandException)(ar.exception), mPhoneId);
                             } else {
                                 reason = new ImsReasonInfo(ImsReasonInfo.CODE_UT_NETWORK_ERROR, 0);
                             }
@@ -338,7 +374,8 @@ public class MtkImsUtImpl extends MtkImsUtImplBase {
 
                             ImsReasonInfo reason;
                             if (ar.exception instanceof CommandException) {
-                                reason = mImsUtImpl.commandExceptionToReason((CommandException)(ar.exception));
+                                reason = mOemPluginBase.commandExceptionToReason(
+                                        (CommandException)(ar.exception), mPhoneId);
                             } else {
                                 reason = new ImsReasonInfo(ImsReasonInfo.CODE_UT_NETWORK_ERROR, 0);
                             }
@@ -359,8 +396,8 @@ public class MtkImsUtImpl extends MtkImsUtImplBase {
                         } else {
                             ImsReasonInfo reason;
                             if (ar.exception instanceof CommandException) {
-                                reason = mImsUtImpl.commandExceptionToReason(
-                                        (CommandException)(ar.exception));
+                                reason = mOemPluginBase.commandExceptionToReason(
+                                        (CommandException)(ar.exception), mPhoneId);
                             } else {
                                 reason = new ImsReasonInfo(ImsReasonInfo.CODE_UT_NETWORK_ERROR, 0);
                             }
@@ -377,6 +414,29 @@ public class MtkImsUtImpl extends MtkImsUtImplBase {
                         } else {
                             Log.e(TAG, "Execute setupXcapUserAgentString failed!" +
                                     "event = " + msg.what);
+                        }
+                    }
+                    break;
+                case IMS_UT_EVENT_GET_CF_WITH_CLASS:
+                    if (null != mListener) {
+                        AsyncResult ar = (AsyncResult) msg.obj;
+                        if (null == ar.exception) {
+
+                            CallForwardInfo[] cfInfo = (CallForwardInfo[]) ar.result;
+                            ImsCallForwardInfo[] imsCfInfo =
+                                    mExtPluginBase.getImsCallForwardInfo(cfInfo);
+
+                            mListener.onUtConfigurationCallForwardQueried(msg.arg1, imsCfInfo);
+                        } else {
+                            ImsReasonInfo reason;
+                            if (ar.exception instanceof CommandException) {
+                                reason = mOemPluginBase.commandExceptionToReason(
+                                        (CommandException)(ar.exception), mPhoneId);
+                            } else {
+                                reason = new ImsReasonInfo(ImsReasonInfo.CODE_UT_NETWORK_ERROR, 0);
+                            }
+
+                            mImsUtImpl.notifyUtConfigurationQueryFailed(msg, reason);
                         }
                     }
                     break;

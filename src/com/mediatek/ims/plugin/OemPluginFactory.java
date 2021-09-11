@@ -45,4 +45,8 @@ public interface OemPluginFactory {
     ImsManagerOemPlugin makeImsManagerPlugin(Context context);
 
     ImsRegistrationOemPlugin makeImsRegistrationPlugin(Context context);
+
+    ImsSSOemPlugin makeImsSSOemPlugin(Context context);
+
+    ImsCallOemPlugin makeImsCallPlugin(Context context);
 }

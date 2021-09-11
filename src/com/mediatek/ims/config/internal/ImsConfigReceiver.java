@@ -25,11 +25,11 @@ import com.mediatek.ims.common.ImsCarrierConfigConstants;
 import com.mediatek.ims.config.ImsConfigContract;
 import com.mediatek.ims.config.internal.ImsConfigUtils;
 import com.mediatek.ims.ImsCommonUtil;
+import com.mediatek.ims.MtkImsConstants;
 import com.mediatek.ims.OperatorUtils;
 import com.mediatek.ims.plugin.ExtensionFactory;
 import com.mediatek.ims.plugin.ImsManagerOemPlugin;
 import com.mediatek.ims.ril.ImsCommandsInterface;
-import com.mediatek.internal.telephony.RadioCapabilitySwitchUtil;
 
 
 public class ImsConfigReceiver extends BroadcastReceiver {
@@ -116,7 +116,8 @@ public class ImsConfigReceiver extends BroadcastReceiver {
                                 .ACTION_DYNAMIC_IMS_SWITCH_TRIGGER);
                         mIntent.putExtra(PhoneConstants.PHONE_KEY, mPhoneId);
                         mIntent.putExtra(IccCardConstants.INTENT_KEY_ICC_STATE, state);
-                        context.sendBroadcast(mIntent);
+                        context.sendBroadcast(mIntent,
+                                android.Manifest.permission.READ_PHONE_STATE);
                     }
                 }
                 break;
@@ -125,15 +126,15 @@ public class ImsConfigReceiver extends BroadcastReceiver {
                 handleCarrierConfigChanged(context, intent);
                 break;
 
-            case ImsManager.ACTION_IMS_SERVICE_UP:
+            case MtkImsConstants.ACTION_MTK_MMTEL_READY:
                 phoneId = intent.getIntExtra(ImsManager.EXTRA_PHONE_ID,
                         SubscriptionManager.INVALID_PHONE_INDEX);
 
                 if (phoneId == mPhoneId) {
-                    resetWfcModeFlag("ACTION_IMS_SERVICE_UP");
+                    resetWfcModeFlag("ACTION_MTK_MMTEL_READY");
                     mHandler.removeMessages(ImsConfigStorage.MSG_UPDATE_IMS_SERVICE_CONFIG);
                     Message msg = new Message();
-                    Log.d(TAG, "ACTION_IMS_SERVICE_UP, update IMS config with phoneId:" +
+                    Log.d(TAG, "ACTION_MTK_MMTEL_READY, update IMS config with phoneId:" +
                           mPhoneId);
                     msg.what = ImsConfigStorage.MSG_UPDATE_IMS_SERVICE_CONFIG;
                     mHandler.sendMessage(msg);
@@ -145,10 +146,10 @@ public class ImsConfigReceiver extends BroadcastReceiver {
 
                 if (mMainPhoneId == SubscriptionManager.INVALID_PHONE_INDEX) {
                     // First time get mMainPhoneId
-                    mMainPhoneId = RadioCapabilitySwitchUtil.getMainCapabilityPhoneId();
+                    mMainPhoneId = ImsCommonUtil.getMainCapabilityPhoneId();
                     isNeedUpdate = false;
                 } else {
-                    phoneId = RadioCapabilitySwitchUtil.getMainCapabilityPhoneId();
+                    phoneId = ImsCommonUtil.getMainCapabilityPhoneId();
 
                     if (phoneId == mMainPhoneId) {
                         // Not SIM Switch
@@ -310,12 +311,12 @@ public class ImsConfigReceiver extends BroadcastReceiver {
 
     private void updateImsServiceConfig(Context context, int phoneId) {
         if (mImsManagerOemPlugin == null) {
-            mImsManagerOemPlugin = ExtensionFactory.makeOemPluginFactory()
+            mImsManagerOemPlugin = ExtensionFactory.makeOemPluginFactory(context)
                     .makeImsManagerPlugin(context);
         }
 
         if (ImsCommonUtil.supportMims() ||
-            phoneId == RadioCapabilitySwitchUtil.getMainCapabilityPhoneId()) {
+            phoneId == ImsCommonUtil.getMainCapabilityPhoneId()) {
             // update for each phoneId or Main phoneId only if not MIMS
             mImsManagerOemPlugin.updateImsServiceConfig(context, phoneId, true);
         } else {

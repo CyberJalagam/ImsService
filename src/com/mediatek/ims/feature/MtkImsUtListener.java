@@ -38,6 +38,7 @@ package com.mediatek.ims.feature;
 import android.annotation.SystemApi;
 import android.os.Bundle;
 import android.os.RemoteException;
+import android.telephony.ims.ImsCallForwardInfo;
 import android.util.Log;
 
 import com.mediatek.ims.internal.IMtkImsUt;
@@ -61,7 +62,15 @@ public class MtkImsUtListener {
         try {
             mServiceInterface.utConfigurationCallForwardInTimeSlotQueried(null, id, cfInfo);
         } catch (RemoteException e) {
-            Log.w(LOG_TAG, "onSupplementaryServiceIndication: remote exception");
+            Log.w(LOG_TAG, "onUtConfigurationCallForwardInTimeSlotQueried: remote exception");
+        }
+    }
+
+    public void onUtConfigurationCallForwardQueried(int id, ImsCallForwardInfo[] cfInfo) {
+        try {
+            mServiceInterface.utConfigurationCallForwardQueried(null, id, cfInfo);
+        } catch (RemoteException e) {
+            Log.w(LOG_TAG, "utConfigurationCallForwardQueried: remote exception");
         }
     }
 

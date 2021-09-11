@@ -33,30 +33,52 @@
  * applicable license agreements with MediaTek Inc.
  */
 
-package com.mediatek.ims.internal.op;
+package com.mediatek.ims.plugin.impl;
 
+import com.mediatek.ims.plugin.ImsCallOemPlugin;
+import android.util.Log;
 import android.content.Context;
-import android.telephony.Rlog;
 
-public interface OpImsServiceFactory {
+/**
+ * Default Implementation of interface ImsCallPlugin
+ */
+public class ImsCallOemPluginBase implements ImsCallOemPlugin {
 
-    /**
-     * Make a instance of OpImsServiceCall
-     * @param context Android Context
-     * @param phoneId Phone Id
-     */
-    OpImsServiceCall makeOpImsServiceCall(Context context, int phoneId);
+    private static final String TAG = "ImsCallOemPluginBase";
 
-    /**
-     * Make a instance of OpImsCallSessionProxy
-     *
-     */
-    OpImsCallSessionProxy makeOpImsCallSessionProxy();
+    private Context                 mContext;
 
-    /**
-     * Make a instance of OpImsService
-     *
-     */
-    OpImsService makeOpImsService();
+    public ImsCallOemPluginBase(Context context) {
+        mContext = context;
+    }
 
+    @Override
+    public String getVTUsageAction() {
+        return "com.mediatek.ims.ACTION_VT_DATA_USAGE";
+    }
+
+    @Override
+    public String getVTUsagePermission() {
+        return "android.permission.READ_NETWORK_USAGE_HISTORY";
+    }
+
+    @Override
+    public boolean needHangupOtherCallWhenEccDialing() {
+        return false;
+    }
+
+    @Override
+    public boolean isUpdateViwifiFeatureValueAsViLTE() {
+        return false;
+    }
+
+    @Override
+    public boolean needReportCallTerminatedForFdn() {
+        return false;
+    }
+
+    @Override
+    public boolean useNormalDialForEmergencyCall() {
+        return false;
+    }
 }

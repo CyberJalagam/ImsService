@@ -33,10 +33,11 @@ import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.CommandException.Error;
 
 import com.mediatek.ims.config.*;
+import com.mediatek.ims.ImsCommonUtil;
+import com.mediatek.ims.MtkImsConstants;
 import com.mediatek.ims.plugin.ExtensionFactory;
 import com.mediatek.ims.plugin.ImsManagerOemPlugin;
 import com.mediatek.ims.ril.ImsCommandsInterface;
-import com.mediatek.internal.telephony.RadioCapabilitySwitchUtil;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -185,8 +186,8 @@ public class ImsConfigStorage {
         filter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
         filter.addAction(CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED);
         filter.addAction(ACTION_CXP_NOTIFY_FEATURE);
-        filter.addAction(ImsManager.ACTION_IMS_SERVICE_UP);
-        if (RadioCapabilitySwitchUtil.isDssNoResetSupport()) {
+        filter.addAction(MtkImsConstants.ACTION_MTK_MMTEL_READY);
+        if (ImsCommonUtil.isDssNoResetSupport()) {
             filter.addAction(TelephonyIntents.ACTION_SET_RADIO_CAPABILITY_DONE);
         }
         mContext.registerReceiver(mReceiver, filter);
@@ -251,12 +252,12 @@ public class ImsConfigStorage {
                     break;
                 case MSG_UPDATE_IMS_SERVICE_CONFIG: {
                     if (mImsManagerOemPlugin == null) {
-                        mImsManagerOemPlugin = ExtensionFactory.makeOemPluginFactory()
+                        mImsManagerOemPlugin = ExtensionFactory.makeOemPluginFactory(mContext)
                                 .makeImsManagerPlugin(mContext);
                     }
 
                     mImsManagerOemPlugin.updateImsServiceConfig(mContext,
-                            RadioCapabilitySwitchUtil.getMainCapabilityPhoneId(), true);
+                            ImsCommonUtil.getMainCapabilityPhoneId(), true);
                 }
                 break;
                 case MSG_SIM_ABSENT_ECC_BROADCAST:
@@ -895,7 +896,8 @@ public class ImsConfigStorage {
             }
             if (simState != null && !(simState.equals(IccCardConstants.INTENT_VALUE_ICC_READY) ||
                     simState.equals(IccCardConstants.INTENT_VALUE_ICC_IMSI) ||
-                    simState.equals(IccCardConstants.INTENT_VALUE_ICC_LOADED))) {
+                    simState.equals(IccCardConstants.INTENT_VALUE_ICC_LOADED) ||
+                    simState.equals(IccCardConstants.INTENT_VALUE_ICC_LOCKED))) {
                 return false;
             } else {
                 if (mIsFeatureBroadcast.get(feature) == 0) {
@@ -981,7 +983,7 @@ public class ImsConfigStorage {
             // Send broadcast to notify observers that storage is restored.
             Intent intent = new Intent(ImsConfigContract.ACTION_CONFIG_LOADED);
             intent.putExtra(ImsConfigContract.EXTRA_PHONE_ID, mPhoneId);
-            mContext.sendBroadcast(intent);
+            mContext.sendBroadcast(intent, android.Manifest.permission.READ_PHONE_STATE);
         }
 
         synchronized boolean isInitDone() {

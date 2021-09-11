@@ -50,7 +50,7 @@ public class ImsConfigSettings {
         sImsConfigurations.put(ImsConfig.ConfigConstants.SMS_FORMAT,
                 new Setting(Integer.class, ImsConfigContract.MimeType.INTEGER));
         sImsConfigurations.put(ImsConfig.ConfigConstants.SMS_OVER_IP,
-                new Setting(Integer.class, ImsConfigContract.MimeType.INTEGER, "sms_over_ip"));
+                new Setting(Integer.class, ImsConfigContract.MimeType.INTEGER));
         sImsConfigurations.put(ImsConfig.ConfigConstants.PUBLISH_TIMER,
                 new Setting(Integer.class, ImsConfigContract.MimeType.INTEGER));
         sImsConfigurations.put(ImsConfig.ConfigConstants.CAPABILITY_DISCOVERY_ENABLED,
@@ -159,6 +159,8 @@ public class ImsConfigSettings {
                 new Setting(String.class, ImsConfigContract.MimeType.STRING, "epdg_identifier"));
         sImsConfigurations.put(MtkImsConstants.ConfigConstants.PUBLISH_ERROR_RETRY_TIMER,
                 new Setting(String.class, ImsConfigContract.MimeType.INTEGER));
+        sImsConfigurations.put(MtkImsConstants.ConfigConstants.VOICE_OVER_WIFI_MDN,
+                new Setting(String.class, ImsConfigContract.MimeType.STRING));
         sImsConfigurations.put(MtkImsConstants.ConfigConstants.VOICE_DOMAIN_PREFERENCE,
                 new Setting(Integer.class, ImsConfigContract.MimeType.INTEGER));
     }

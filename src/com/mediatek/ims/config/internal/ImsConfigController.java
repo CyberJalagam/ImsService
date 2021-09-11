@@ -16,16 +16,17 @@ import android.telephony.Rlog;
 import android.telephony.SubscriptionManager;
 import android.telephony.ims.ImsReasonInfo;
 import android.text.TextUtils;
+import com.mediatek.ims.ImsCommonUtil;
 import com.android.ims.ImsConfig;
 import com.android.ims.ImsException;
 import com.android.ims.ImsManager;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyIntents;
 import com.mediatek.ims.config.ImsConfigContract;
+import com.mediatek.ims.MtkImsConstants;
 import com.mediatek.ims.plugin.ExtensionFactory;
 import com.mediatek.ims.plugin.ImsManagerOemPlugin;
 import com.mediatek.ims.ril.ImsCommandsInterface;
-import com.mediatek.internal.telephony.RadioCapabilitySwitchUtil;
 
 public class ImsConfigController {
     private static final String TAG = "ImsConfigController";
@@ -65,7 +66,7 @@ public class ImsConfigController {
     static final int MSG_IMS_SET_PROVISION_DONE = 102;
     static final int MSG_IMS_GET_FEATURE_DONE = 103;
     static final int MSG_IMS_SET_FEATURE_DONE = 104;
-    static final int MSG_IMS_SET_RESOURCE_DONE = 105;
+
     static final int MSG_IMS_GET_RESOURCE_DONE = 106;
 
     static final int MSG_IMS_SET_MDCFG_DONE = 107;
@@ -136,8 +137,9 @@ public class ImsConfigController {
         filter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
         filter.addAction(CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED);
         filter.addAction(ACTION_CXP_NOTIFY_FEATURE);
-        filter.addAction(ImsManager.ACTION_IMS_SERVICE_UP);
-        if (RadioCapabilitySwitchUtil.isDssNoResetSupport()) {
+        filter.addAction(MtkImsConstants.ACTION_MTK_MMTEL_READY);
+
+        if (ImsCommonUtil.isDssNoResetSupport()) {
             filter.addAction(TelephonyIntents.ACTION_SET_RADIO_CAPABILITY_DONE);
         }
         mContext.registerReceiver(mReceiver, filter);
@@ -162,8 +164,6 @@ public class ImsConfigController {
                 return "MSG_IMS_GET_FEATURE_DONE";
             case MSG_IMS_SET_FEATURE_DONE:
                 return "MSG_IMS_SET_FEATURE_DONE";
-            case MSG_IMS_SET_RESOURCE_DONE:
-                return "MSG_IMS_SET_RESOURCE_DONE";
             case MSG_IMS_GET_RESOURCE_DONE:
                 return "MSG_IMS_GET_RESOURCE_DONE";
             case MSG_IMS_SET_MDCFG_DONE:
@@ -284,27 +284,6 @@ public class ImsConfigController {
                 }
                 break;
 
-                case MSG_IMS_SET_RESOURCE_DONE: {
-                    AsyncResult ar = (AsyncResult) msg.obj;
-                    ImsConfigController.FeatureResult result = (ImsConfigController
-                            .FeatureResult) ar.userObj;
-                    synchronized (result.lockObj) {
-                        if (ar.exception != null) {
-                            // Retry to send AT cmd again when failure in future
-                            result.featureResult = CONFIG_CMD_ERROR;
-                            Rlog.e(mLogTag, "MSG_IMS_SET_RESOURCE_DONE: error ret null, e=" + ar
-                                    .exception);
-                        } else {
-                            result.featureResult = CONFIG_CMD_SUCCESS;
-
-                            if (DEBUG)
-                                Rlog.d(mLogTag, "MSG_IMS_SET_RESOURCE_DONE: Finish set resource!");
-                        }
-                        result.lockObj.notify();
-                    }
-                }
-                break;
-
                 case MSG_IMS_GET_RESOURCE_DONE: {
                     AsyncResult ar = (AsyncResult) msg.obj;
                     ImsConfigController.FeatureResult result = (ImsConfigController
@@ -365,11 +344,11 @@ public class ImsConfigController {
 
                 case MSG_UPDATE_IMS_SERVICE_CONFIG: {
                     if (mImsManagerOemPlugin == null) {
-                        mImsManagerOemPlugin = ExtensionFactory.makeOemPluginFactory()
+                        mImsManagerOemPlugin = ExtensionFactory.makeOemPluginFactory(mContext)
                                 .makeImsManagerPlugin(mContext);
                     }
 
-                    mImsManagerOemPlugin.updateImsServiceConfig(mContext, RadioCapabilitySwitchUtil
+                    mImsManagerOemPlugin.updateImsServiceConfig(mContext, ImsCommonUtil
                             .getMainCapabilityPhoneId(), true);
                 }
                 break;
@@ -379,7 +358,7 @@ public class ImsConfigController {
                     Intent intent = new Intent(ImsConfigContract
                             .ACTION_DYNAMIC_IMS_SWITCH_COMPLETE);
                     intent.putExtra(PhoneConstants.PHONE_KEY, mPhoneId);
-                    mContext.sendBroadcast(intent);
+                    mContext.sendBroadcast(intent, android.Manifest.permission.READ_PHONE_STATE);
 
                     if (DEBUG)
                         Rlog.d(mLogTag, "DYNAMIC_IMS_SWITCH_COMPLETE phoneId:" + mPhoneId);
@@ -410,7 +389,7 @@ public class ImsConfigController {
                     Intent intent = new Intent(ImsConfigContract
                             .ACTION_CONFIG_LOADED);
                     intent.putExtra(PhoneConstants.PHONE_KEY, mPhoneId);
-                    mContext.sendBroadcast(intent);
+                    mContext.sendBroadcast(intent, android.Manifest.permission.READ_PHONE_STATE);
 
                     if (DEBUG)
                         Rlog.d(mLogTag, "EVENT_IMS_CFG_CONFIG_LOADED phoneId:" + mPhoneId);
@@ -564,28 +543,6 @@ public class ImsConfigController {
      */
     public void setProvisionedStringValue(int configId, String value) throws ImsException {
         setProvisionedValue(configId, value);
-    }
-
-    public synchronized void setImsResCapability(int featureId, int value) throws ImsException {
-        synchronized (mResourceValueLock) {
-            FeatureResult result = new FeatureResult();
-            Message msg = mHandler.obtainMessage(MSG_IMS_SET_RESOURCE_DONE, result);
-            synchronized (result.lockObj) {
-                mRilAdapter.setImsCfgResourceCapValue(featureId, value, msg);
-                try {
-                    result.lockObj.wait(10000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                    result.featureResult = CONFIG_INTERRUPT_ERROR;
-                }
-
-                if (!isConfigSuccess(result.featureResult)) {
-                    throw new ImsException("Something wrong, reason:" + result.featureResult,
-                            ImsReasonInfo.CODE_LOCAL_ILLEGAL_ARGUMENT);
-
-                }
-            }
-        }
     }
 
     public synchronized int getImsResCapability(int featureId) throws ImsException {

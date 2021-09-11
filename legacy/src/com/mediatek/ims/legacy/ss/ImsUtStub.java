@@ -74,7 +74,7 @@ import com.android.internal.telephony.TelephonyIntents;
 
 import java.net.UnknownHostException;
 
-import com.mediatek.ims.common.ImsRILConstants;
+import com.mediatek.ims.ril.ImsRILConstants;
 
 import com.mediatek.ims.ImsService;
 import com.mediatek.ims.MtkImsCallForwardInfo;
@@ -84,6 +84,7 @@ import com.mediatek.ims.OperatorUtils.OPID;
 import com.mediatek.ims.SuppSrvConfig;
 import com.mediatek.internal.telephony.MtkCallForwardInfo;
 import com.mediatek.internal.telephony.MtkPhoneConstants;
+import com.mediatek.internal.telephony.MtkSuppServHelper;
 import com.mediatek.simservs.xcap.XcapException;
 
 
@@ -115,6 +116,9 @@ public class ImsUtStub extends ImsUtImplBase {
     private ImsService mImsService = null;
     private int mPhoneId = 0;
 
+    private boolean mIsInVoLteCall = false;
+    private boolean mIsNeedImsDereg = false;
+
     static final int IMS_UT_EVENT_GET_CB = 1000;
     static final int IMS_UT_EVENT_GET_CF = 1001;
     static final int IMS_UT_EVENT_GET_CW = 1002;
@@ -129,11 +133,43 @@ public class ImsUtStub extends ImsUtImplBase {
     static final int IMS_UT_EVENT_SET_CLIP = 1011;
     static final int IMS_UT_EVENT_SET_COLR = 1012;
     static final int IMS_UT_EVENT_SET_COLP = 1013;
+    static final int IMS_UT_EVENT_IMS_DEREG = 1014;
 
     static final int HTTP_ERROR_CODE_400 = 400;
     static final int HTTP_ERROR_CODE_403 = 403;
     static final int HTTP_ERROR_CODE_404 = 404;
     static final int HTTP_ERROR_CODE_409 = 409;
+
+    private static final int IMS_DEREG_CAUSE_BY_SS_CONFIG = 2;   //For AT command for IMS dereg
+
+    private static final int DEFAULT_INVALID_PHONE_ID = -1;
+
+    private static final String IMS_DEREG_PROP = "vendor.gsm.radio.ss.imsdereg";
+    private static final String IMS_DEREG_ON = "1";
+    private static final String IMS_DEREG_OFF = "0";
+
+    // Set a system property to avoid that the IMS register is with problem.
+    private static final String IMS_DEREG_DISABLE_PROP = "persist.vendor.radio.ss.imsdereg_off";
+
+    private final BroadcastReceiver mIntentReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            // TODO Auto-generated method stub
+            if (DBG) {
+                Log.d(TAG, "Intent action:" + intent.getAction());
+            }
+
+            if (intent.getAction().equals(PhoneConstants
+                    .ACTION_SUBSCRIPTION_PHONE_STATE_CHANGED)) {
+
+                String state = intent.getStringExtra(PhoneConstants.STATE_KEY);
+                onReceivePhoneStateChange(
+                        intent.getIntExtra(PhoneConstants.SLOT_KEY, DEFAULT_INVALID_PHONE_ID),
+                        intent.getIntExtra(MtkPhoneConstants.PHONE_TYPE_KEY, RILConstants.NO_PHONE),
+                        Enum.valueOf(PhoneConstants.State.class, state));
+            }
+        }
+    };
 
     /**
      *
@@ -152,6 +188,10 @@ public class ImsUtStub extends ImsUtImplBase {
         Looper looper = thread.getLooper();
         mHandler = new ResultHandler(looper);
 
+        IntentFilter intentFilter =
+                new IntentFilter(PhoneConstants.ACTION_SUBSCRIPTION_PHONE_STATE_CHANGED);
+        mContext.registerReceiver(mIntentReceiver, intentFilter);
+
         mImsService = imsService;
         mPhoneId = phoneId;
     }
@@ -164,6 +204,35 @@ public class ImsUtStub extends ImsUtImplBase {
             } else {
                 sImsUtStubs.put(phoneId, new ImsUtStub(context, phoneId, service));
                 return sImsUtStubs.get(phoneId);
+            }
+        }
+    }
+
+    private void onReceivePhoneStateChange(int phoneId, int phoneType,
+            PhoneConstants.State phoneState) {
+        if (DBG) {
+            Log.d(TAG, "onReceivePhoneStateChange phoneId:" + phoneId +
+                    " phoneType: " + phoneType + " phoneState: " + phoneState +
+                    " mIsInVoLteCall: " + mIsInVoLteCall);
+        }
+
+        if (phoneId != mPhoneId) {
+            return;
+        }
+
+        if (mIsInVoLteCall == true) {
+            if (phoneState == PhoneConstants.State.IDLE) {
+                mIsInVoLteCall = false;
+                if (mIsNeedImsDereg) {
+                    mHandler.sendMessage(
+                               mHandler.obtainMessage(IMS_UT_EVENT_IMS_DEREG, null));
+                    mIsNeedImsDereg = false;
+                }
+            }
+        } else {
+            if (phoneState != PhoneConstants.State.IDLE
+                    && phoneType == RILConstants.IMS_PHONE) {
+                mIsInVoLteCall = true;
             }
         }
     }
@@ -225,11 +294,38 @@ public class ImsUtStub extends ImsUtImplBase {
                             if (cfInfo != null) {
                                 imsCfInfo = new ImsCallForwardInfo[cfInfo.length];
                                 for (int i = 0; i < cfInfo.length; i++) {
-                                    if (DBG) {
-                                        Log.d(TAG, "IMS_UT_EVENT_GET_CF: cfInfo[" + i + "] = "
-                                                + cfInfo[i]);
-                                    }
                                     imsCfInfo[i] = getImsCallForwardInfo(cfInfo[i]);
+                                    if (DBG) {
+                                        Log.d(TAG, "IMS_UT_EVENT_SET_CF: cfInfo[" + i + "] = "
+                                                + ", Condition: " + imsCfInfo[i].getCondition()
+                                                + ", Status: " + ((imsCfInfo[i].getStatus() == 0) ? "disabled" : "enabled")
+                                                + ", ToA: " + imsCfInfo[i].getToA()
+                                                + ", Service Class: " + imsCfInfo[i].getServiceClass()
+                                                + ", Number=" + MtkSuppServHelper.encryptString(imsCfInfo[i].getNumber())
+                                                + ", Time (seconds): " + imsCfInfo[i].getTimeSeconds());
+                                    }
+                                }
+                            }
+
+                            if (ssConfig.isNeedIMSDereg()) {
+                                boolean enable = IMS_DEREG_ON.equals(
+                                        SystemProperties.get(IMS_DEREG_PROP, IMS_DEREG_OFF));
+
+                                SystemProperties.set(IMS_DEREG_PROP, IMS_DEREG_OFF);
+
+                                boolean disableIMSDereg =
+                                        "1".equals(SystemProperties.get(IMS_DEREG_DISABLE_PROP, "-1"));
+                                if (enable && !disableIMSDereg) {
+                                    if (mIsInVoLteCall) {
+                                        Log.d(TAG, "During call and later do IMS dereg");
+                                        mIsNeedImsDereg = true;
+                                    } else {
+                                        Log.d(TAG, "IMS dereg.");
+                                        mImsService.deregisterImsWithCause(
+                                                mPhoneId, IMS_DEREG_CAUSE_BY_SS_CONFIG);
+                                    }
+                                } else {
+                                    Log.d(TAG, "Skip IMS dereg.");
                                 }
                             }
 
@@ -376,6 +472,29 @@ public class ImsUtStub extends ImsUtImplBase {
                                 break;  //Break here and no need to do the below process.
                                         //If ar.result is null, then use the original flow.
                             }
+                        } else if (null == ar.exception) {
+                            if (ssConfig.isNeedIMSDereg()) {
+                                boolean enable = IMS_DEREG_ON.equals(
+                                        SystemProperties.get(IMS_DEREG_PROP, IMS_DEREG_OFF));
+
+                                SystemProperties.set(IMS_DEREG_PROP, IMS_DEREG_OFF);
+
+                                boolean disableIMSDereg =
+                                        "1".equals(SystemProperties.get(IMS_DEREG_DISABLE_PROP,
+                                                "-1"));
+                                if (enable && !disableIMSDereg) {
+                                    if (mIsInVoLteCall) {
+                                        Log.d(TAG, "During call and later do IMS dereg");
+                                        mIsNeedImsDereg = true;
+                                    } else {
+                                        Log.d(TAG, "IMS dereg.");
+                                        mImsService.deregisterImsWithCause(
+                                                mPhoneId, IMS_DEREG_CAUSE_BY_SS_CONFIG);
+                                    }
+                                } else {
+                                    Log.d(TAG, "Skip IMS dereg.");
+                                }
+                            }
                         }
                     }
                 case IMS_UT_EVENT_SET_CW: // fall through
@@ -413,12 +532,24 @@ public class ImsUtStub extends ImsUtImplBase {
                         }
                     }
                     break;
+                case IMS_UT_EVENT_IMS_DEREG:
+                    mImsService.deregisterImsWithCause(
+                            mPhoneId, IMS_DEREG_CAUSE_BY_SS_CONFIG);
+                    break;
                 default:
                     Log.d(TAG, "Unknown Event: " + msg.what);
                     break;
             }
         }
     };
+
+    /**
+     * Closes the object. This object is not usable after being closed.
+     */
+    @Override
+    public void close() {
+        mContext.unregisterReceiver(mIntentReceiver);
+    }
 
     protected String getFacilityFromCBType(int cbType) {
         switch (cbType) {
@@ -1039,5 +1170,9 @@ public class ImsUtStub extends ImsUtImplBase {
 
     public void notifyUtConfigurationQueryFailed(Message msg, ImsReasonInfo error) {
         mListener.onUtConfigurationQueryFailed(msg.arg1, error);
+    }
+
+    public void notifyUtConfigurationCallForwardQueried(Message msg, ImsCallForwardInfo[] cfInfo) {
+        mListener.onUtConfigurationCallForwardQueried(msg.arg1, cfInfo);
     }
 }

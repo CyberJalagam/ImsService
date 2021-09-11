@@ -42,6 +42,7 @@ import android.os.Handler;
 import android.os.Registrant;
 import android.os.RegistrantList;
 import android.telephony.Rlog;
+import android.telephony.TelephonyManager;
 
 /**
  * {@hide}
@@ -54,7 +55,7 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
     protected Context mContext;
 
     // Radio State of Current Phone
-    protected RadioState mState = RadioState.RADIO_UNAVAILABLE;
+    protected int mState = TelephonyManager.RADIO_POWER_UNAVAILABLE;
 
     // Current Phone Id
     protected int mPhoneId;
@@ -71,7 +72,8 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
 
     // Call Control
     protected RegistrantList mIncomingCallIndicationRegistrants = new RegistrantList();
-    protected RegistrantList mIncomingCallAdditionalInfoRegistrant = new RegistrantList();
+    protected RegistrantList mCallAdditionalInfoRegistrants = new RegistrantList();
+    protected RegistrantList mCallRatIndicationRegistrants = new RegistrantList();
 
     // VoLTE
     protected RegistrantList mImsEnableStartRegistrants = new RegistrantList();
@@ -98,7 +100,6 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
 
     // For incoming USSI event
     protected RegistrantList mUSSIRegistrants = new RegistrantList();
-    protected RegistrantList mNetworkInitUSSIRegistrants = new RegistrantList();
 
     // ECBM
     protected RegistrantList mEnterECBMRegistrants = new RegistrantList();
@@ -115,8 +116,7 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
     protected Object mVolteSettingValue = null;
 
     // Register for IMS Bearer update
-    protected RegistrantList mActivateBearerRegistrants = new RegistrantList();
-    protected RegistrantList mDeactivateBearerRegistrants = new RegistrantList();
+    protected RegistrantList mBearerStateRegistrants = new RegistrantList();
     protected RegistrantList mBearerInitRegistrants = new RegistrantList();
 
     // Register for IMS Data info notification
@@ -127,6 +127,9 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
 
     // Register for VoLTE subscription update
     protected RegistrantList mVolteSubscriptionRegistrants = new RegistrantList();
+
+    // Register for Supplementary service notification
+    protected RegistrantList mSuppServiceNotificationRegistrants = new RegistrantList();
 
     // Register for IMS Event Package
     protected RegistrantList mImsEvtPkgRegistrants = new RegistrantList();
@@ -154,6 +157,37 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
     // Ims Cfg Config Loaded
     protected RegistrantList mImsCfgConfigLoadedRegistrants = new RegistrantList();
 
+    // RTT Capability Indication RegistrantList
+    protected RegistrantList mRttCapabilityIndicatorRegistrants = new RegistrantList();
+
+    // RTT Modify Response RegistrantList
+    protected RegistrantList mRttModifyResponseRegistrants = new RegistrantList();
+
+    // RTT Text Receive RegistrantList
+    protected RegistrantList mRttTextReceiveRegistrants = new RegistrantList();
+
+    // RTT Modify Request Receive RegistrantList
+    protected RegistrantList mRttModifyRequestReceiveRegistrants = new RegistrantList();
+
+    // RTT Modify Request Receive RegistrantList
+    protected RegistrantList mRttAudioIndicatorRegistrants = new RegistrantList();
+
+    // VoPS indication
+    protected RegistrantList mVopsStatusIndRegistrants = new RegistrantList();
+
+    // Report the indicator +EIMSREGURI and +EIMSREGRESP
+    protected RegistrantList mImsRegStatusIndRistrants = new RegistrantList();
+
+    // Report the SIP headers
+    protected RegistrantList mImsSipHeaderRegistrants = new RegistrantList();
+
+    // Report the detail IMS registration information
+    protected RegistrantList mEiregIndRegistrants = new RegistrantList();
+
+    // Report the SSAC information
+    protected RegistrantList mSsacIndRegistrants = new RegistrantList();
+
+
     /**
      * Constructor
      * @param context Android Context
@@ -176,14 +210,25 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
     }
 
     @Override
-    public void setOnIncomingCallAdditionalInfo(Handler h, int what, Object obj) {
+    public void registerForCallAdditionalInfo(Handler h, int what, Object obj) {
         Registrant r = new Registrant(h, what, obj);
-        mIncomingCallAdditionalInfoRegistrant.add(r);
+        mCallAdditionalInfoRegistrants.add(r);
     }
 
     @Override
-    public void unsetOnIncomingCallAdditionalInfo(Handler h) {
-        mIncomingCallAdditionalInfoRegistrant.remove(h);
+    public void unregisterForCallAdditionalInfo(Handler h) {
+        mCallAdditionalInfoRegistrants.remove(h);
+    }
+
+    @Override
+    public void registerForCallRatIndication(Handler h, int what, Object obj) {
+        Registrant r = new Registrant(h, what, obj);
+        mCallRatIndicationRegistrants.add(r);
+    }
+
+    @Override
+    public void unregisterForCallRatIndication(Handler h) {
+        mCallRatIndicationRegistrants.remove(h);
     }
 
     @Override
@@ -379,25 +424,14 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
     }
 
     @Override
-    public void registerForBearerActivation(Handler h, int what, Object obj) {
+    public void registerForBearerState(Handler h, int what, Object obj) {
         Registrant r = new Registrant(h, what, obj);
-        mActivateBearerRegistrants.add(r);
+        mBearerStateRegistrants.add(r);
     }
 
     @Override
-    public void unregisterForBearerActivation(Handler h) {
-        mActivateBearerRegistrants.remove(h);
-    }
-
-    @Override
-    public void registerForBearerDeactivation(Handler h, int what, Object obj) {
-        Registrant r = new Registrant(h, what, obj);
-        mDeactivateBearerRegistrants.add(r);
-    }
-
-    @Override
-    public void unregisterForBearerDeactivation(Handler h) {
-        mDeactivateBearerRegistrants.remove(h);
+    public void unregisterForBearerState(Handler h) {
+        mBearerStateRegistrants.remove(h);
     }
 
     @Override
@@ -434,6 +468,17 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
     }
 
     @Override
+    public void setOnSuppServiceNotification(Handler h, int what, Object obj) {
+        Registrant r = new Registrant(h, what, obj);
+        mSuppServiceNotificationRegistrants.add(r);
+    }
+
+    @Override
+    public void unSetOnSuppServiceNotification(Handler h) {
+        mSuppServiceNotificationRegistrants.remove(h);
+    }
+
+    @Override
     public void registerForImsEventPackage(Handler h, int what, Object obj) {
         Registrant r = new Registrant(h, what, obj);
         mImsEvtPkgRegistrants.add(r);
@@ -448,17 +493,6 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
     @Override
     public void unSetOnUSSI(Handler h) {
         mUSSIRegistrants.remove(h);
-    }
-
-    @Override
-    public void setOnNetworkInitUSSI(Handler h, int what, Object obj) {
-        Registrant r = new Registrant(h, what, obj);
-        mNetworkInitUSSIRegistrants.add(r);
-    }
-
-    @Override
-    public void unSetOnNetworkInitUSSI(Handler h) {
-        mNetworkInitUSSIRegistrants.remove(h);
     }
 
     /**
@@ -510,7 +544,7 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
         synchronized (mStateMonitor) {
             mNotAvailRegistrants.add(r);
 
-            if (!mState.isAvailable()) {
+            if (mState == TelephonyManager.RADIO_POWER_UNAVAILABLE) {
                 r.notifyRegistrant(new AsyncResult(null, null, null));
             }
         }
@@ -540,7 +574,7 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
         synchronized (mStateMonitor) {
             mOffRegistrants.add(r);
 
-            if (mState == RadioState.RADIO_OFF) {
+            if (mState == TelephonyManager.RADIO_POWER_OFF) {
                 r.notifyRegistrant(new AsyncResult(null, null, null));
             }
         }
@@ -572,7 +606,7 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
         synchronized (mStateMonitor) {
             mOnRegistrants.add(r);
 
-            if (mState.isOn()) {
+            if (mState == TelephonyManager.RADIO_POWER_ON) {
                 r.notifyRegistrant(new AsyncResult(null, null, null));
             }
         }
@@ -635,7 +669,6 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
 
     /// M: Register for IMS support ECC updating. @{
     protected RegistrantList mImsEccSupportRegistrants = new RegistrantList();
-    protected int mSupportLteEcc = -1;
     /// @}
 
     /**
@@ -648,13 +681,7 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
      */
     public void registerForImsEccSupport(Handler h, int what, Object obj) {
         Registrant r = new Registrant(h, what, obj);
-        int[] ret = new int[] { mSupportLteEcc, mPhoneId };
-
         mImsEccSupportRegistrants.add(r);
-        if (mSupportLteEcc != -1) {
-            r.notifyRegistrant(
-                    new AsyncResult(null, ret, null));
-        }
     }
 
     public void unregisterForImsEccSupport(Handler h) {
@@ -892,8 +919,8 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
      * receiving unsolicited event
      * @param newState New Radio State
      */
-    protected void setRadioState(RadioState newState) {
-        RadioState oldState;
+    protected void setRadioState(int newState) {
+        int oldState;
 
         synchronized (mStateMonitor) {
             oldState = mState;
@@ -907,25 +934,28 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
 
             mRadioStateChangedRegistrants.notifyRegistrants();
 
-            if (mState.isAvailable() && !oldState.isAvailable()) {
+            if (mState != TelephonyManager.RADIO_POWER_UNAVAILABLE
+                    && oldState == TelephonyManager.RADIO_POWER_UNAVAILABLE) {
                 mAvailRegistrants.notifyRegistrants();
-                onRadioAvailable();
             }
 
-            if (!mState.isAvailable() && oldState.isAvailable()) {
+            if (mState == TelephonyManager.RADIO_POWER_UNAVAILABLE
+                    && oldState != TelephonyManager.RADIO_POWER_UNAVAILABLE) {
                 mNotAvailRegistrants.notifyRegistrants();
             }
 
-            if (mState.isOn() && !oldState.isOn()) {
+            if (mState == TelephonyManager.RADIO_POWER_ON
+                    && oldState != TelephonyManager.RADIO_POWER_ON) {
                 mOnRegistrants.notifyRegistrants();
             }
 
-            if ((!mState.isOn() || !mState.isAvailable())
-                && !((!oldState.isOn() || !oldState.isAvailable()))) {
+            if ((mState == TelephonyManager.RADIO_POWER_OFF
+                    || mState == TelephonyManager.RADIO_POWER_UNAVAILABLE)
+                    && (oldState == TelephonyManager.RADIO_POWER_ON)) {
                 mOffOrNotAvailRegistrants.notifyRegistrants();
             }
 
-            if (mState.isAvailable() && !mState.isOn()) {
+            if (mState == TelephonyManager.RADIO_POWER_OFF) {
                 mOffRegistrants.notifyRegistrants();
             }
         }
@@ -936,7 +966,223 @@ public abstract class ImsBaseCommands implements ImsCommandsInterface {
      * MTK Proprietary Logical
      * @param newState New Change
      */
-    protected void notifyRadioStateChanged(RadioState newState) {
+    protected void notifyRadioStateChanged(int newState) {
         // Do Notify Here
+    }
+
+    // ========= RTT ========================================================
+    /**
+     * Registers the handler for RTT capability changed event.
+     * @param h Handler for notification message.
+     * @param what User-defined message code.
+     * @param obj User object.
+     *
+     */
+    @Override
+    public void registerForRttCapabilityIndicator(Handler h, int what, Object obj) {
+        Registrant r = new Registrant(h, what, obj);
+        mRttCapabilityIndicatorRegistrants.add(r);
+    }
+
+    /**
+     * Unregisters the handler for RTT capability changed event.
+     *
+     * @param h Handler for notification message.
+     *
+     */
+    @Override
+    public void unregisterForRttCapabilityIndicator(Handler h) {
+        mRttCapabilityIndicatorRegistrants.remove(h);
+    }
+
+    /**
+     * Registers the handler for Rtt Modify Response event.
+     * @param h Handler for notification message.
+     * @param what User-defined message code.
+     * @param obj User object.
+     *
+     */
+    @Override
+    public void registerForRttModifyResponse(Handler h, int what, Object obj) {
+        Registrant r = new Registrant(h, what, obj);
+        mRttModifyResponseRegistrants.add(r);
+    }
+
+    /**
+     * Unregisters the handler for Rtt Modify Response event.
+     *
+     * @param h Handler for notification message.
+     *
+     */
+    @Override
+    public void unregisterForRttModifyResponse(Handler h) {
+        mRttModifyResponseRegistrants.remove(h);
+    }
+
+    /**
+     * Registers the handler for Rtt Text Receive event.
+     * @param h Handler for notification message.
+     * @param what User-defined message code.
+     * @param obj User object.
+     *
+     */
+    @Override
+    public void registerForRttTextReceive(Handler h, int what, Object obj) {
+        Registrant r = new Registrant(h, what, obj);
+        mRttTextReceiveRegistrants.add(r);
+    }
+
+    /**
+     * Unregisters the handler for Rtt Text Receive event.
+     *
+     * @param h Handler for notification message.
+     *
+     */
+    @Override
+    public void unregisterForRttTextReceive(Handler h) {
+        mRttTextReceiveRegistrants.remove(h);
+    }
+
+    /**
+     * Registers the handler for Rtt Modify Request Receive event.
+     * @param h Handler for notification message.
+     * @param what User-defined message code.
+     * @param obj User object.
+     *
+     */
+    @Override
+    public void registerForRttModifyRequestReceive(Handler h, int what, Object obj) {
+        Registrant r = new Registrant(h, what, obj);
+        mRttModifyRequestReceiveRegistrants.add(r);
+    }
+
+    /**
+     * Unregisters the handler for Rtt Modify Request Receive event.
+     *
+     * @param h Handler for notification message.
+     *
+     */
+    @Override
+    public void unregisterForRttModifyRequestReceive(Handler h) {
+        mRttModifyRequestReceiveRegistrants.remove(h);
+    }
+
+    /**
+     * Registers the handler for Rtt Audio.
+     * @param h Handler for notification message.
+     * @param what User-defined message code.
+     * @param obj User object.
+     *
+     */
+    @Override
+    public void registerForRttAudioIndicator(Handler h, int what, Object obj) {
+        Registrant r = new Registrant(h, what, obj);
+        mRttAudioIndicatorRegistrants.add(r);
+    }
+
+    /**
+     * Unregisters the handler for Rtt Audio.
+     *
+     * @param h Handler for notification message.
+     *
+     */
+    @Override
+    public void unregisterForRttAudioIndicator(Handler h) {
+        mRttAudioIndicatorRegistrants.remove(h);
+    }
+
+    /**
+     * Register for VoPS status indication
+     * @param h
+     * @param what
+     * @param obj
+     */
+    public void registerForVopsStatusInd(Handler h, int what, Object obj) {
+        Registrant r = new Registrant(h, what, obj);
+        mVopsStatusIndRegistrants.add(r);
+    }
+
+    /**
+     * Unregister for VoPS status indication
+     * @param h
+     */
+    public void unregisterForVopsStatusInd(Handler h) {
+        mVopsStatusIndRegistrants.remove(h);
+    }
+
+    /**
+     * Register for IMS registration status report indication
+     * @param h
+     * @param what
+     * @param obj
+     */
+    public void registerForImsRegStatusInd(Handler h, int what, Object obj) {
+        Registrant r = new Registrant(h, what, obj);
+        mImsRegStatusIndRistrants.add(r);
+    }
+
+    /**
+     * Unregister for IMS registration status report indication
+     * @param h
+     */
+    public void unregisterForImsRegStatusInd(Handler h) {
+        mImsRegStatusIndRistrants.remove(h);
+    }
+
+    /**
+     * Register for Sip header report indication
+     * @param h
+     * @param what
+     * @param obj
+     */
+    public void registerForSipHeaderInd(Handler h, int what, Object obj) {
+        Registrant r = new Registrant(h, what, obj);
+        mImsSipHeaderRegistrants.add(r);
+    }
+
+    /**
+     * Unregister for Sip header report indication
+     * @param h
+     */
+    public void unregisterForSipHeaderInd(Handler h) {
+        mImsSipHeaderRegistrants.remove(h);
+    }
+
+    /**
+     * Register for the detail IMS registration information indication
+     * @param h
+     * @param what
+     * @param obj
+     */
+    public void registerForDetailImsRegistrationInd(Handler h, int what, Object obj) {
+        Registrant r = new Registrant(h, what, obj);
+        mEiregIndRegistrants.add(r);
+    }
+
+    /**
+     * Unregister for the detail IMS registration information indication
+     * @param h
+     */
+    public void unregisterForDetailImsRegistrationInd(Handler h) {
+        mEiregIndRegistrants.remove(h);
+    }
+
+    /**
+     * Register for the SSAC state indication
+     * @param h
+     * @param what
+     * @param obj
+     */
+    public void registerForSsacStateInd(Handler h, int what, Object obj) {
+        Registrant r = new Registrant(h, what, obj);
+        mSsacIndRegistrants.add(r);
+    }
+
+    /**
+     * Unregister for the SSAC state indication
+     * @param h
+     */
+    public void unregisterForSsacStateInd(Handler h) {
+        mSsacIndRegistrants.remove(h);
     }
 }

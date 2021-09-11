@@ -6,11 +6,13 @@ import android.telephony.Rlog;
 import android.text.TextUtils;
 import android.os.Build;
 import android.os.SystemProperties;
+import android.support.v4.content.LocalBroadcastManager;
 
 import com.mediatek.ims.ImsAdapter.VaSocketIO;
 import com.mediatek.ims.ImsAdapter.VaEvent;
 import com.mediatek.ims.ImsConstants;
 import com.mediatek.ims.ImsEventDispatcher;
+import com.mediatek.ims.ImsServiceCallTracker;
 import static com.mediatek.ims.VaConstants.*;
 
 
@@ -65,7 +67,8 @@ public class CallControlDispatcher implements ImsEventDispatcher.VaEventDispatch
             if (!SENLOG || TELDBG) {
                 Rlog.d(TAG, "requestId = " + requestId + ", length = " + len +
                         ", callId = " + callId + ", phoneId = " + phoneId +
-                        ", serviceId = " + serviceId + ", data = " + data.substring(0, len));
+                        ", serviceId = " + serviceId + ", data = " +
+                        ImsServiceCallTracker.sensitiveEncode(data.substring(0, len)));
             } else {
                 Rlog.d(TAG, "requestId = " + requestId + ", length = " + len +
                         ", callId = " + callId + ", phoneId = " + phoneId +
@@ -79,16 +82,17 @@ public class CallControlDispatcher implements ImsEventDispatcher.VaEventDispatch
                     intent = new Intent(ImsConstants.ACTION_LTE_MESSAGE_WAITING_INDICATION);
                     intent.putExtra(ImsConstants.EXTRA_LTE_MWI_BODY, data);
                     intent.putExtra(ImsConstants.EXTRA_PHONE_ID, phoneId);
-                    mContext.sendBroadcast(intent);
+                    mContext.sendBroadcast(intent,
+                            ImsConstants.PERMISSION_READ_LTE_MESSAGE_WAITING_INDICATION);
                     Rlog.d(TAG, "Message Waiting Message is sent.");
                     break;
                 case IMC_PROGRESS_NOTIFY_CONFERENCE:
-                    /* Send to GSMPhone object */
+                    /* Send to ImsConferenceHandler */
                     intent = new Intent(ImsConstants.ACTION_IMS_CONFERENCE_CALL_INDICATION);
                     intent.putExtra(ImsConstants.EXTRA_MESSAGE_CONTENT, data.substring(0, len));
                     intent.putExtra(ImsConstants.EXTRA_CALL_ID, callId);
                     intent.putExtra(ImsConstants.EXTRA_PHONE_ID, phoneId);
-                    mContext.sendBroadcast(intent);
+                    LocalBroadcastManager.getInstance(mContext).sendBroadcast(intent);
                     Rlog.d(TAG, "Conference call XML message is sent.");
                     break;
                 case IMC_PROGRESS_NOTIFY_DIALOG:
@@ -96,7 +100,7 @@ public class CallControlDispatcher implements ImsEventDispatcher.VaEventDispatch
                     intent.putExtra(ImsConstants.EXTRA_DEP_CONTENT, data.substring(0, len));
                     intent.putExtra(ImsConstants.EXTRA_CALL_ID, callId);
                     intent.putExtra(ImsConstants.EXTRA_PHONE_ID, phoneId);
-                    mContext.sendBroadcast(intent);
+                    LocalBroadcastManager.getInstance(mContext).sendBroadcast(intent);
                     Rlog.d(TAG, "Dialog event package intent is sent.");
                     break;
                 default:

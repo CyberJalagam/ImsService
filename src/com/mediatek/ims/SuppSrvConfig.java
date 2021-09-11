@@ -79,7 +79,7 @@ public class SuppSrvConfig {
     private static final int PROP_BOOL_IDX_ATTR_NEED_QUAOTATION_MARK    = 20;
     private static final int PROP_BOOL_IDX_FWD_NUM_USE_SIP_URI          = 21;
     private static final int PROP_BOOL_IDX_SUPPORT_PLUS_TO_URL          = 22;
-    private static final int PROP_BOOL_IDX_REMOVE_VOICEMAIL_RULE        = 23;
+    private static final int PROP_BOOL_IDX_SUPPORT_NON_URI_NUMBER       = 23;
 
     private static final int PROP_STR_IDX_ELEMENT_CONTENT_TYPE = 0;
     private static final int PROP_STR_IDX_AUID                 = 1;
@@ -150,7 +150,7 @@ public class SuppSrvConfig {
     private boolean mSupportPutCfRoot                 = true;
     private boolean mAttrNeedQuotationMark            = false;
     private boolean mFwdNumUseSipUri                  = false;
-    private boolean mRemoveVoicemailRule              = false;
+    private boolean mSupportPutNonUriNumber           = false;
 
     private String  mElementContentType               = null;
     private String  mAUID                             = null;
@@ -241,8 +241,8 @@ public class SuppSrvConfig {
                 return "PROP_BOOL_IDX_ATTR_NEED_QUAOTATION_MARK";
             case PROP_BOOL_IDX_FWD_NUM_USE_SIP_URI:
                 return "PROP_BOOL_IDX_FWD_NUM_USE_SIP_URI";
-            case PROP_BOOL_IDX_REMOVE_VOICEMAIL_RULE:
-                return "PROP_BOOL_IDX_REMOVE_VOICEMAIL_RULE";
+            case PROP_BOOL_IDX_SUPPORT_NON_URI_NUMBER:
+                return "PROP_BOOL_IDX_SUPPORT_NON_URI_NUMBER";
             default:
                 return "NOT_FOUND";
         }
@@ -371,8 +371,8 @@ public class SuppSrvConfig {
         } else {
             SystemProperties.set("persist.vendor.mtk.xcap.rawurl", "false");
         }
-        mRemoveVoicemailRule = initParaBool(PROP_BOOL_IDX_REMOVE_VOICEMAIL_RULE,
-                R.bool.conf_remove_voicemail_rule);
+        mSupportPutNonUriNumber = initParaBool(PROP_BOOL_IDX_SUPPORT_NON_URI_NUMBER,
+                R.bool.conf_support_put_non_uri_number);
         mElementContentType = initParaString(PROP_STR_IDX_ELEMENT_CONTENT_TYPE,
                 R.string.conf_eleupdatetype);
         mAUID = initParaString(PROP_STR_IDX_AUID,
@@ -701,7 +701,7 @@ public class SuppSrvConfig {
         return mFwdNumUseSipUri;
     }
 
-    public boolean isRemoveVoicemailRule() {
-        return mRemoveVoicemailRule;
+    public boolean isSupportPutNonUriNumber() {
+        return mSupportPutNonUriNumber;
     }
 }

@@ -7,7 +7,7 @@
  * any reproduction, modification, use or disclosure of MediaTek Software,
  * and information contained herein, in whole or in part, shall be strictly prohibited.
  */
-/* MediaTek Inc. (C) 2017. All rights reserved.
+/* MediaTek Inc. (C) 2018. All rights reserved.
  *
  * BY OPENING THIS FILE, RECEIVER HEREBY UNEQUIVOCALLY ACKNOWLEDGES AND AGREES
  * THAT THE SOFTWARE/FIRMWARE AND ITS DOCUMENTATIONS ("MEDIATEK SOFTWARE")
@@ -35,21 +35,31 @@
 
 package com.mediatek.ims;
 
-import android.telephony.Rlog;
-
-
 /**
- * This class is used to create IMS related Mediatek component.
+ * IMS RIL call information.
  */
-public class MtkImsComponentFactory extends ImsComponentFactory {
-    private static MtkImsComponentFactory sInstance;
-    public static final String LOG_TAG = "MtkImsComponentFactory";
+public class ImsRegInfo {
+    public int mReportType;               // refer to enum ImsRegStatusReportType
+    public int mAccountId;
+    public int mExpireTime;               // How long will the IMS registration connection expire
+    public int mErrorCode;                // Error code if registration fail
+    public String mUri;                   // Profile URI
+    public String mErrorMsg;              // Error message if registration fail
 
-    public static MtkImsComponentFactory getInstance() {
-        if (sInstance == null) {
-            Rlog.d(LOG_TAG , "init");
-            sInstance = new MtkImsComponentFactory();
-        }
-        return sInstance;
+    //***** Constructors
+    public ImsRegInfo(int type, int accountId, int expireTime, int errCode, String uri,
+            String errMsg) {
+        mReportType = type;
+        mAccountId = accountId;
+        mExpireTime = expireTime;
+        mErrorCode = errCode;
+        mUri = uri;
+        mErrorMsg = errMsg;
+    }
+
+    public String toString() {
+        return "ImsRegInfo :: {" + mReportType + ", " + mAccountId + ", " + mExpireTime
+                + ", " + mErrorCode + "," + mErrorMsg + "}";
     }
 }
+

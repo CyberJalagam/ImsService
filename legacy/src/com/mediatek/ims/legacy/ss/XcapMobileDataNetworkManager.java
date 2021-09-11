@@ -33,6 +33,7 @@ import android.os.Message;
 import android.os.SystemClock;
 //import android.os.SystemProperties;
 import android.provider.Settings;
+import android.telephony.data.ApnSetting;
 import android.telephony.PhoneStateListener;
 import android.telephony.PreciseDataConnectionState;
 import android.telephony.Rlog;
@@ -73,6 +74,11 @@ public class XcapMobileDataNetworkManager {
     private HandlerThread mHandlerThread;
     private int mXcapDataConnectionState = TelephonyManager.DATA_UNKNOWN;
     private boolean isNotifyByDataDisconnected = false;
+
+    /** APN type for XCAP traffic.
+     *  Reference to MtkApnSetting.java
+     */
+    public static final int TYPE_XCAP = ApnSetting.TYPE_EMERGENCY << 2;
 
     /**
      * Manages the XCAP mobile data network connectivity.
@@ -288,13 +294,17 @@ public class XcapMobileDataNetworkManager {
     private void releaseRequest() {
         Rlog.d(LOG_TAG, "releaseRequest: mNetwork=" + mNetwork
                 + ", mNetworkCallback=" + mNetworkCallback);
+        final ConnectivityManager connectivityManager = getConnectivityManager();
         if (mNetworkCallback != null) {
-            final ConnectivityManager connectivityManager = getConnectivityManager();
             connectivityManager.unregisterNetworkCallback(mNetworkCallback);
         }
         if (mNetwork != null) {
             mPreviousReleaseTime = SystemClock.elapsedRealtime();
             Rlog.d(LOG_TAG, "Release time: " + mPreviousReleaseTime);
+        }
+        if (connectivityManager != null) {
+            Rlog.d(LOG_TAG, "UnBind process network");
+            connectivityManager.bindProcessToNetwork(null);
         }
         mNetworkCallback = null;
         mNetwork = null;
@@ -331,14 +341,14 @@ public class XcapMobileDataNetworkManager {
         // ToDo: O migration
         int subId = getSubIdUsingPhoneId(phoneId);
         Rlog.d(LOG_TAG, "startListenXcapDataConnectionState: subid=" + subId);
-        mPhoneStateListener = new PhoneStateListener(subId, mHandlerThread.getLooper()){
+        mPhoneStateListener = new PhoneStateListener(mHandlerThread.getLooper()){
             public void onPreciseDataConnectionStateChanged(PreciseDataConnectionState state) {
                 int newState = state.getDataConnectionState();
-                String apnType = state.getDataConnectionAPNType();
+                int apnType = state.getDataConnectionApnTypeBitMask();
                 Rlog.d(LOG_TAG, "onPreciseDataConnectionStateChanged: apnType=" + apnType
                         + ", newState=" + dataStateToString(newState)
                         + ", currentXcapState=" + dataStateToString(mXcapDataConnectionState));
-                if(!apnType.equals("xcap")) {
+                if(apnType != TYPE_XCAP) {
                     return;
                 }
                 if(mXcapDataConnectionState == TelephonyManager.DATA_CONNECTING

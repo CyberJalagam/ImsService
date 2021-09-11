@@ -42,49 +42,6 @@ package com.mediatek.ims.common;
   * ImsCarrierConfigConstants.java & MtkCarrierConfigManager.java
   *****************************************************************/
 public interface ImsCarrierConfigConstants {
-
-    /**
-     * Support nourth America high priority CLIR such as *82
-     * Default value is false
-     */
-    String MTK_KEY_CARRIER_NOURTH_AMERICA_HIGH_PRIORITY_CLIR_PREFIX_SUPPORTED =
-           "mtk_carrier_nouth_america_high_priority_clir_prefix_supported";
-
-    /**
-     * Need to swap conference to foreground before merge
-     * Default value is false
-     */
-    String MTK_KEY_CARRIER_SWAP_CONFERENCE_TO_FOREGROUND_BEFORE_MERGE =
-           "mtk_carrier_swap_conference_to_foreground_before_merge";
-
-    /**
-     * Need to update dialing address from PAU
-     * Default value is false
-     */
-    String MTK_KEY_CARRIER_UPDATE_DIALING_ADDRESS_FROM_PAU =
-           "mtk_carrier_update_dialing_address_from_pau";
-
-
-    /**
-     * WFC bad Wifi quality disconnect cause
-     * Default value is false
-     */
-    String MTK_KEY_CARRIER_NOTIFY_BAD_WIFI_QUALITY_DISCONNECT_CAUSE =
-           "mtk_carrier_notify_bad_wifi_quality_disconnect_cause";
-
-    /**
-     * Restore participants address for IMS conference.
-     */
-    String MTK_KEY_RESTORE_ADDRESS_FOR_IMS_CONFERENCE_PARTICIPANTS =
-           "mtk_key_restore_address_for_ims_conference_participants";
-
-    /**
-     * Operate IMS conference participants by user untity from CEP.
-     * @hide
-     */
-    public static final String MTK_KEY_OPERATE_IMS_CONFERENCE_PARTICIPANTS_BY_USER_ENTITY =
-            "mtk_key_operate_ims_conference_participants_by_user_entity";
-
     /**
      * Determine whether to remove WFC preference mode or not.
      */
@@ -98,32 +55,18 @@ public interface ImsCarrierConfigConstants {
      */
     String KEY_OPERATOR_ID_INT = "operator_id";
 
-    /**
-     * IMS ECBM supported
-     * Default value is false
+    /*
+     * For Call blokcing enhancement feature, reject call with cause.
      */
-    String MTK_KEY_CARRIER_IMS_ECBM_SUPPORTED =
-           "mtk_carrier_ims_ecbm_supported";
+    String MTK_KEY_SUPPORT_ENHANCED_CALL_BLOCKING_BOOL = "mtk_support_enhanced_call_blocking_bool";
 
-    /**
-     * Added to check the case if Operator server supports Conference management or not.
-     * @hide
+    /*
+     * Indicates if the carrier is without precondition when MT RTT call CRING time, ex. VzW
      */
-    String MTK_KEY_CONFERENCE_MANAGEMENT_SUPPORTED =
-            "mtk_key_conference_management_supported";
+    String MTK_KEY_MT_RTT_WITHOUT_PRECONDITION_BOOL = "mtk_mt_rtt_without_precondition_bool";
 
-    /**
-     * Need to swap conference to foreground before merge
-     * Default value is false
-     * @hide
+    /*
+     * Indicates if carrier supports RTT and Video call switch.
      */
-    public static final String MTK_KEY_CARRIER_SWAP_VT_CONFERENCE_TO_FOREGROUND_BEFORE_MERGE =
-            "mtk_carrier_swap_vt_conference_to_foreground_before_merge";
-
-    /**
-     * Added to check the case if Operator server supports first participant as host.
-     * @hide
-     */
-    String MTK_KEY_CONF_FIRST_PARTICIPANT_AS_HOST_SUPPORTED =
-            "mtk_key_conference_first_participant_as_host_supported";
+    String MTK_KEY_RTT_VIDEO_SWITCH_SUPPORTED_BOOL = "mtk_rtt_video_switch_supported_bool";
 }

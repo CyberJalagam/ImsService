@@ -50,70 +50,6 @@ public class DefaultOpImsRIL implements OpImsCommandsInterface {
     }
 
     @Override
-    public void setRttMode(int mode, Message response) {
-        // Nothing
-    }
-
-    @Override
-    public void sendRttModifyRequest(int callId, int newMode,
-            Message response) {
-        // Nothing
-    }
-
-    @Override
-    public void sendRttText(int callId, String text, int length, Message response) {
-        // Nothing
-    }
-
-    @Override
-    public void setRttModifyRequestResponse(int callId, int result,
-                                            Message response) {
-       // Nothing
-    }
-
-    @Override
-    public void registerForGttCapabilityIndicator(Handler h, int what,
-                                                  Object obj) {
-        // Nothing
-    }
-
-    @Override
-    public void unregisterForGttCapabilityIndicator(Handler h) {
-        // Nothing
-    }
-
-    @Override
-    public void registerForRttModifyResponse(Handler h, int what, Object obj) {
-        // Nothing
-    }
-
-    @Override
-    public void unregisterForRttModifyResponse(Handler h) {
-        // Nothing
-    }
-
-    @Override
-    public void registerForRttTextReceive(Handler h, int what, Object obj) {
-        // Nothing
-    }
-
-    @Override
-    public void unregisterForRttTextReceive(Handler h) {
-        // Nothing
-    }
-
-    @Override
-    public void registerForRttModifyRequestReceive(Handler h, int what,
-                                                   Object obj) {
-        // Nothing
-    }
-
-    @Override
-    public void unregisterForRttModifyRequestReceive(Handler h) {
-        // Nothing
-    }
-
-    @Override
     public void dialFrom(String address, String fromAddress, int clirMode, boolean isVideoCall,
                          Message result) {
         // Nothing
@@ -130,32 +66,12 @@ public class DefaultOpImsRIL implements OpImsCommandsInterface {
     }
 
     @Override
-    public void setEmergencyCallConfig(int category, boolean isForceEcc, Message response) {
-        // Nothing
-    }
-
-    @Override
     public void deviceSwitch(String number, String deviceId, Message response) {
         // Nothing
     }
 
     @Override
     public void cancelDeviceSwitch(Message response) {
-        // Nothing
-    }
-
-    @Override
-    public void enableRttAudioIndication(int callId, int enable, Message response) {
-        // Nothing
-    }
-
-    @Override
-    public void registerForAudioIndication(Handler h, int what, Object obj) {
-        // Nothing
-    }
-
-    @Override
-    public void unregisterForAudioIndication(Handler h) {
         // Nothing
     }
 }

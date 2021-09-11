@@ -24,8 +24,6 @@ import com.mediatek.ims.common.SubscriptionManagerHelper;
 
 import java.io.Serializable;
 
-import vendor.mediatek.hardware.netdagent.V1_0.INetdagent;
-
 public class ImsDataSynchronizer {
 
     private String TAG = ImsDataSynchronizer.class.getSimpleName();
@@ -43,6 +41,10 @@ public class ImsDataSynchronizer {
     public static final int EVENT_MD_RESTART  = 5;
     public static final int EVENT_SET_BEARER_NOTIFICATION_DONE  = 6;
     public static final int EVENT_IMS_DATA_INFO  = 7;
+    public static final int EVENT_BEARER_STATE_CHANGED = 8;
+
+    public static final int ACTION_ACTIVATION = 1;
+    public static final int ACTION_DEACTIVATION = 0;
 
     public ImsDataSynchronizer(Context context, ImsDataTracker dataTracker, int phoneId) {
         mContext = context;
@@ -153,7 +155,6 @@ public class ImsDataSynchronizer {
         private ActivatingState mActivatingState = new ActivatingState();
         private ActiveState mActiveState = new ActiveState();
         private DisconnectingState mDisconnectingState = new DisconnectingState();
-        private String mFwInterface = "";
 
         /// Status Code {
         private static final int STATUS_SUCCESS = 0;
@@ -314,13 +315,11 @@ public class ImsDataSynchronizer {
             public void enter() {
                 mPdnSatate = "ActiveState";
                 logd("enter");
-                setFirewallInterfaceChain(true);
             }
 
             @Override
             public void exit() {
                 logd("exit");
-                setFirewallInterfaceChain(false);
             }
 
             @Override
@@ -426,8 +425,8 @@ public class ImsDataSynchronizer {
             if ((mPdnSatate.equals("ActivatingState")) ||
                     (mPdnSatate.equals("ActiveState")) ||
                     (mPdnSatate.equals("DisconnectingState"))) {
-                loge("inValid state: " + mPdnSatate);
-                return;
+               loge("inValid state: " + mPdnSatate);
+               return;
             }
 
             try {
@@ -452,7 +451,7 @@ public class ImsDataSynchronizer {
             }
             if(n != null) {
                 mImsNetworkRequests.remove(n.getRequest());
-                mDataTracker.responseBearerConfirm(n.getRequest(), n.getAid(), status, mPhoneId);
+                mDataTracker.responseBearerConfirm(n.getRequest(), n.getAid(), n.getAction(), status, mPhoneId);
             }
         }
 
@@ -476,7 +475,7 @@ public class ImsDataSynchronizer {
             if(n != null) {
                 mImsNetworkRequests.remove(n.getRequest());
                 mDataTracker.responseBearerConfirm(
-                    n.getRequest(), n.getAid(), STATUS_SUCCESS, mPhoneId);
+                    n.getRequest(), n.getAid(), n.getAction(), STATUS_SUCCESS, mPhoneId);
             }
         }
 
@@ -539,51 +538,6 @@ public class ImsDataSynchronizer {
             }
         }
 
-        private void setFirewallInterfaceChain(boolean isAdded) {
-            logd("setFirewallInterfaceChain:" + isAdded);
-            if (isAdded) {
-                try {
-                    Network[] info = mConnectivityManager.getAllNetworks();
-                    for (Network nw : info) {
-                        final NetworkCapabilities nc =
-                                mConnectivityManager.getNetworkCapabilities(nw);
-                        if (nc.hasCapability(mCapability)) {
-                            LinkProperties linkProp = mConnectivityManager.getLinkProperties(nw);
-                            if (linkProp != null) {
-                                mFwInterface = linkProp.getInterfaceName();
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    loge("getAllNetworks:" + e);
-                }
-            }
-            Thread thread = new Thread("setFirewallInterfaceChain") {
-                public void run() {
-                    try {
-                        INetdagent agent = INetdagent.getService();
-                        if (agent == null) {
-                            loge("agnet is null");
-                            return;
-                        }
-                        if (mFwInterface == null) {
-                            loge("mFwInterface is null");
-                            return;
-                        }
-                        final String rule = isAdded ? "allow" : "deny";
-                        String cmd = String.format(
-                                "netdagent firewall set_interface_for_chain_rule %s dozable %s",
-                                mFwInterface, rule);
-                        logd("cmd:" + cmd);
-                        agent.dispatchNetdagentCmd(cmd);
-                    } catch (Exception e) {
-                        loge("setFirewallInterfaceChain:" + e);
-                    }
-                }
-            };
-            thread.start();
-        }
-
         private String msgToString(int msg) {
             switch(msg) {
                 case EVENT_CONNECT:
@@ -620,12 +574,14 @@ public class ImsDataSynchronizer {
         private static final long serialVersionUID = -5053412967314724078L;
 
         private int     mAid;
+        private int     mAction;
         private int     mPhoneId;
         private int     mRequest;
         private String  mCapability;
 
-        public ImsBearerRequest(int aid, int phoneId, int request, String capability) {
+        public ImsBearerRequest(int aid, int action, int phoneId, int request, String capability) {
             mAid = aid;
+            mAction = action;
             mPhoneId = phoneId;
             mRequest = request;
             mCapability = capability;
@@ -633,6 +589,10 @@ public class ImsDataSynchronizer {
 
         public int getAid() {
             return mAid;
+        }
+
+        public int getAction() {
+            return mAction;
         }
 
         public int getPhoneId() {
@@ -650,6 +610,7 @@ public class ImsDataSynchronizer {
         public String toString() {
             StringBuilder builder = new StringBuilder();
             builder.append("aid: " + mAid);
+            builder.append(" action: " + mAction);
             builder.append(" phoneId: " + mPhoneId);
             switch(mRequest){
                 case EVENT_CONNECT:

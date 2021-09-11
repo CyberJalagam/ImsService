@@ -42,112 +42,7 @@ public interface OpImsCommandsInterface {
 
     // Actions Interfaces below
 
-    /**
-     * Set RTT Mode
-     * RIL_REQUEST_SET_RTT_MODE
-     * @param mode Mode
-     * @param response Response object
-     */
-    void setRttMode(int mode, Message response);
-
-    /**
-     * Send RTT Modify Request
-     * RIL_REQUEST_SEND_RTT_MODIFY_REQUEST
-     * @param callId Call id
-     * @param newMode New mode
-     * @param response Response object
-     */
-    void sendRttModifyRequest(int callId, int newMode, Message response);
-
-    /**
-     * Send RTT Text
-     * RIL_REQUEST_SEND_RTT_TEXT
-     * @param callId Call Id
-     * @param text Text
-     * @param response Response object
-     */
-    void sendRttText(int callId, String text, int length, Message response);
-
-    /**
-     * Request RTT Modify Response
-     * RIL_REQUEST_RTT_MODIFY_REQUEST_RESPONSE
-     * @param callId Call id
-     * @param result Result
-     * @param response Response object
-     */
-    void setRttModifyRequestResponse(int callId, int result, Message response);
-
-
     // URC Listener / Registrant Interfaces below
-
-    /**
-     * Registers the handler for GTT capability changed event.
-     * @param h Handler for notification message.
-     * @param what User-defined message code.
-     * @param obj User object.
-     *
-     */
-    void registerForGttCapabilityIndicator(Handler h, int what, Object obj);
-
-
-    /**
-     * Unregisters the handler for GTT capability changed event.
-     *
-     * @param h Handler for notification message.
-     *
-     */
-    void unregisterForGttCapabilityIndicator(Handler h);
-
-    /**
-     * Registers the handler for Rtt Modify Response event.
-     * @param h Handler for notification message.
-     * @param what User-defined message code.
-     * @param obj User object.
-     *
-     */
-    void registerForRttModifyResponse(Handler h, int what, Object obj);
-
-    /**
-     * Unregisters the handler for Rtt Modify Response event.
-     *
-     * @param h Handler for notification message.
-     *
-     */
-    void unregisterForRttModifyResponse(Handler h);
-
-    /**
-     * Registers the handler for Rtt Text Receive event.
-     * @param h Handler for notification message.
-     * @param what User-defined message code.
-     * @param obj User object.
-     *
-     */
-    void registerForRttTextReceive(Handler h, int what, Object obj);
-
-    /**
-     * Unregisters the handler for Rtt Text Receive event.
-     *
-     * @param h Handler for notification message.
-     *
-     */
-    void unregisterForRttTextReceive(Handler h);
-
-    /**
-     * Registers the handler for Rtt Modify Request Receive event.
-     * @param h Handler for notification message.
-     * @param what User-defined message code.
-     * @param obj User object.
-     *
-     */
-    void registerForRttModifyRequestReceive(Handler h, int what, Object obj);
-
-    /**
-     * Unregisters the handler for Rtt Modify Request Receive event.
-     *
-     * @param h Handler for notification message.
-     *
-     */
-    void unregisterForRttModifyRequestReceive(Handler h);
 
     /**
      * Dial a call from specific address
@@ -177,14 +72,6 @@ public interface OpImsCommandsInterface {
     void cancelUssiFrom(String from, Message response);
 
     /**
-     * Set Emergecny call config
-     * @param category
-     * @param isForceEcc
-     * @param response
-     */
-    void setEmergencyCallConfig(int category, boolean isForceEcc, Message response);
-
-    /**
      * Device switch
      * @param number
      * @param deviceId
@@ -197,31 +84,6 @@ public interface OpImsCommandsInterface {
      * @param response
      */
     void cancelDeviceSwitch(Message response);
-
-    /**
-     * Device switch
-     * @param callId call id
-     * @param enable enable RTT audio indication
-     * @param response
-     */
-    void enableRttAudioIndication(int callId, int enable, Message response);
-
-    /**
-     * Registers the handler for Audio Indication.
-     * @param h Handler for notification message.
-     * @param what User-defined message code.
-     * @param obj User object.
-     *
-     */
-    void registerForAudioIndication(Handler h, int what, Object obj);
-
-    /**
-     * Unregisters the handler for Audio Indication.
-     *
-     * @param h Handler for notification message.
-     *
-     */
-    void unregisterForAudioIndication(Handler h);
 }
 
 

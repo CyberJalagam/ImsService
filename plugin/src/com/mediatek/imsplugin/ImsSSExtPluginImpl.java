@@ -33,43 +33,45 @@
  * applicable license agreements with MediaTek Inc.
  */
 
-package com.mediatek.ims;
+package com.mediatek.imsplugin;
 
-import android.telephony.Rlog;
+import android.util.Log;
+import android.content.Context;
+import android.telephony.ims.ImsCallForwardInfo;
+import android.telephony.ims.ImsReasonInfo;
 
-import dalvik.system.PathClassLoader;
+import com.android.internal.telephony.CallForwardInfo;
 
-import java.lang.reflect.Method;
-import java.lang.reflect.Constructor;
+import com.mediatek.ims.ImsUtImpl;
+import com.mediatek.ims.plugin.impl.ImsSSExtPluginBase;
 
-/**
- * This class is used to create IMS related AOSP component. It serves IMS apk modules like
- * ImsService. The purpose is to centralize and allow dynamic loading for Mediatek component
- * creation.
- */
-public class ImsComponentFactory {
-    private static ImsComponentFactory sInstance;
-    public static final String LOG_TAG = "ImsComponentFactory";
+public class ImsSSExtPluginImpl extends ImsSSExtPluginBase {
 
-    public static ImsComponentFactory getInstance() {
-        if (sInstance == null) {
-            String className = "com.mediatek.ims.MtkImsComponentFactory";
-            String classPackage = "/system/framework/mediatek-framework.jar";
-            PathClassLoader pathClassLoader = new PathClassLoader(classPackage,
-                    ClassLoader.getSystemClassLoader());
-            Rlog.d(LOG_TAG , "pathClassLoader = " + pathClassLoader);
-            Class<?> clazz = null;
-            try {
-                clazz = Class.forName(className, false, pathClassLoader);
-                Rlog.d(LOG_TAG, "class = " + clazz);
-                Constructor<?> clazzConstructfunc = clazz.getConstructor();
-                Rlog.d(LOG_TAG, "constructor function = " + clazzConstructfunc);
-                sInstance = (ImsComponentFactory) clazzConstructfunc.newInstance();
-            } catch (Exception  e) {
-                Rlog.e(LOG_TAG, "No MtkImsComponentFactory! Use AOSP for instead!");
-                sInstance = new ImsComponentFactory();
+    private static final String TAG = "ImsSSExtPluginImpl";
+
+    private Context mContext;
+
+    public ImsSSExtPluginImpl(Context context) {
+        super(context);
+        mContext = context;
+    }
+
+    @Override
+    public ImsCallForwardInfo[] getImsCallForwardInfo(CallForwardInfo[] info) {
+        ImsCallForwardInfo[] imsCfInfo = null;
+        if (info != null) {
+            imsCfInfo = new ImsCallForwardInfo[info.length];
+            for (int i = 0; i < info.length; i++) {
+                Log.d(TAG, "getImsCallForwardInfo: info[" + i + "] = " + info[i]);
+                imsCfInfo[i] = new ImsCallForwardInfo();
+                imsCfInfo[i].mCondition = ImsUtImpl.getConditionFromCFReason(info[i].reason);
+                imsCfInfo[i].mStatus = info[i].status;
+                imsCfInfo[i].mServiceClass = info[i].serviceClass;
+                imsCfInfo[i].mToA = info[i].toa;
+                imsCfInfo[i].mNumber = info[i].number;
+                imsCfInfo[i].mTimeSeconds = info[i].timeSeconds;
             }
         }
-        return sInstance;
+        return imsCfInfo;
     }
 }

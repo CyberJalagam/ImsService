@@ -87,6 +87,7 @@ import com.mediatek.ims.plugin.impl.ImsSelfActivatorBase;
 import com.mediatek.ims.plugin.impl.ImsCallPluginBase;
 
 import com.mediatek.ims.ImsCommonUtil;
+import com.mediatek.ims.ImsService;
 
 public class ImsVTProvider extends ImsVideoCallProvider implements
         VTSource.EventCallback {
@@ -138,6 +139,7 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
     protected static final int MSG_RESET_WRAPPER                                   = 704;
     protected static final int MSG_UPDATE_PROFILE                                  = 705;
     protected static final int MSG_RECEIVE_CALL_SESSION_EVENT                      = 706;
+    protected static final int MSG_UPDATE_CALL_RAT                                 = 707;
     // ===================================================================================
 
     // ===================================================================================
@@ -168,7 +170,7 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
 
     public static final int SESSION_EVENT_BAD_DATA_BITRATE                         = 4008;
     public static final int SESSION_EVENT_DATA_BITRATE_RECOVER                     = 4009;
-    public static final int SESSION_EVENT_RECV_CANCEL_SESSION_IND                  = 4010;
+    public static final int SESSION_EVENT_RECV_ENHANCE_SESSION_IND                 = 4010;
     public static final int SESSION_EVENT_DATA_PATH_PAUSE                          = 4011;
     public static final int SESSION_EVENT_DATA_PATH_RESUME                         = 4012;
     public static final int SESSION_EVENT_DEFAULT_LOCAL_SIZE                       = 4013;
@@ -189,6 +191,7 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
     public static final int SESSION_EVENT_ERROR_CODEC                              = 8004;
     public static final int SESSION_EVENT_ERROR_REC                                = 8005;
     public static final int SESSION_EVENT_ERROR_CAMERA_SET_IGNORED                 = 8006;
+    public static final int SESSION_EVENT_ERROR_BIND_PORT                          = 8007;
 
     public static final int SESSION_EVENT_WARNING_SERVICE_NOT_READY                = 9001;
     // ===================================================================================
@@ -268,6 +271,16 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
     public static final int SESSION_MODIFICATION_OVERLAP_ACTION_ROAMINGG           = 2;
     public static final int SESSION_MODIFICATION_OVERLAP_ACTION_MA_CRASH           = 3;
 
+    // ===================================================================================
+    // session modify indication type
+    public static final int SESSION_INDICATION_CANCEL                              = 0;
+    public static final int SESSION_INDICATION_EARLY_MEDIA                         = 1;
+
+    public static final int EARLY_MEDIA_STOP                                       = 0;
+    public static final int EARLY_MEDIA_START                                      = 1;
+
+    // ===================================================================================
+
     static final String                         TAG = "ImsVT";
 
     protected int                               mId = 1;
@@ -284,6 +297,7 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
     // session modify related variables
     protected boolean                           mDuringSessionRequestOperation = false;
     protected boolean                           mDuringSessionRemoteRequestOperation = false;
+    protected boolean                           mDuringEarlyMedia = false;
     protected boolean                           mIsDuringResetMode = false;
     protected Object                            mSessionOperationFlagLock = new Object();
     protected VideoProfile                      mLastRequestVideoProfile;
@@ -338,6 +352,8 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
 
     protected int                               mOrientation = 0;
     protected Runnable                          mOrientationRunnable = null;
+
+    protected int                               mCallRat = ImsVTProviderUtil.CALL_RAT_LTE;
 
     public ImsVTProvider() {
         super();
@@ -447,6 +463,15 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
                             args.recycle();
                         }
                         break;
+                    }
+                    case MSG_UPDATE_CALL_RAT: {
+                        SomeArgs args = (SomeArgs) msg.obj;
+                        try {
+                            int callRat = (int) args.arg1;
+                            updateCallRatInternal(callRat);
+                        } finally {
+                            args.recycle();
+                        }
                     }
                     default:
                         break;
@@ -691,6 +716,7 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
     public static native int nStartRecording(int id, int type, String url, long maxSize);
     public static native int nStopRecording(int id);
     public static native int nSwitchFeature(int id, int feature, int on);
+    public static native int nUpdateNetworkTable(boolean is_add, int network_id, String if_name);
 
     public void onSetCamera(String cameraId) {
         mProviderHandler.obtainMessage(MSG_SET_CAMERA, cameraId).sendToTarget();
@@ -764,6 +790,12 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
         SomeArgs args = SomeArgs.obtain();
         args.arg1 = state;
         mProviderHandler.obtainMessage(MSG_UPDATE_PROFILE, args).sendToTarget();
+    }
+
+    public void onUpdateCallRat(int rat) {
+        SomeArgs args = SomeArgs.obtain();
+        args.arg1 = rat;
+        mProviderHandler.obtainMessage(MSG_UPDATE_CALL_RAT, args).sendToTarget();
     }
 
     public void onReceiveCallSessionEvent(int event) {
@@ -954,19 +986,31 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
             return;
         }
 
-        // When sending video session modify request during ViLTE off, MA error, data off, just reject it.
-        if ((!mVTProviderUtil.isVideoCallOn(mSimId) ||
-            hasState(mState, VTP_STATE_DATA_OFF) ||
-            hasState(mState, VTP_STATE_ROAMING) ||
-            hasState(mState, VTP_STATE_MA_CRASH)) &&
-            VideoProfile.isVideo(toProfile.getVideoState())) {
+        if (VideoProfile.isVideo(toProfile.getVideoState())) {
+            if (hasState(mState, VTP_STATE_MA_CRASH)) {
 
-            rejectSessionModifyInternal(
-                    Connection.VideoProvider.SESSION_MODIFY_REQUEST_FAIL,
-                    toProfile,
-                    fromProfile);
-            Log.d(TAG, "[ID=" + mId + "] [onSendSessionModifyRequest] Reject it by state:" + mState);
-            return;
+                //if MA CRASH, reject upgrade directly
+                rejectSessionModifyInternal(
+                        Connection.VideoProvider.SESSION_MODIFY_REQUEST_FAIL,
+                        toProfile,
+                        fromProfile);
+                Log.d(TAG, "[ID=" + mId + "] [onSendSessionModifyRequest] Reject it by have MA CRASH:" + mState);
+                return;
+
+            } else if (!mVTProviderUtil.isVideoCallOn(mSimId) ||
+                    hasState(mState, VTP_STATE_DATA_OFF) ||
+                    hasState(mState, VTP_STATE_ROAMING)) {
+
+                //vilte off or data unvailable, if not wifi call, reject upgrade directly
+                if (!(mCallRat == ImsVTProviderUtil.CALL_RAT_WIFI && mVTProviderUtil.isViWifiOn(mSimId))) {
+                    rejectSessionModifyInternal(
+                            Connection.VideoProvider.SESSION_MODIFY_REQUEST_FAIL,
+                            toProfile,
+                            fromProfile);
+                    Log.d(TAG, "[ID=" + mId + "] [onSendSessionModifyRequest] Reject it by state:" + mState);
+                    return;
+                }
+            }
         }
 
         int decision = doSessionModifyDecision(SESSION_MODIFICATION_OVERLAP_ACTION_APP, fromProfile, toProfile);
@@ -1192,8 +1236,8 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
         ImsVTUsage usage = mUsager.requestCallDataUsage();
 
         if (usage != null) {
-            changeCallDataUsage(usage.getLteUsage());
-            notifyWifiUsageChange(usage.getWifiUsage());
+            changeCallDataUsage(usage.getLteUsage(ImsVTUsage.STATE_TXRX));
+            notifyWifiUsageChange(usage.getWifiUsage(ImsVTUsage.STATE_TXRX));
         }
     }
 
@@ -1444,6 +1488,12 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
     }
 
     public void notifyResume() {
+    }
+
+    public void updateCallRatInternal(int callRat) {
+        Log.d(TAG, "[ID=" + mId + "] [updateCallRatInternal] Start, callRat=" + callRat);
+        mCallRat = callRat;
+        Log.d(TAG, "[ID=" + mId + "] [updateCallRatInternal] Finish");
     }
 
     // when two session modify is overlapping, we need to decide how to handle the second one
@@ -1889,19 +1939,30 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
                 VideoProfile currentProfile = new VideoProfile(VideoProfile.STATE_BIDIRECTIONAL, VideoProfile.QUALITY_MEDIUM);
                 VideoProfile requestProfile = mVTProviderUtil.unPackToVdoProfile((String) obj1);
 
-                // When receive video session modify request during ViLTE off, MA error, data off, just reject it.
-                if ((!mVTProviderUtil.isVideoCallOn(vp.mSimId) ||
-                    vp.hasState(vp.mState, VTP_STATE_DATA_OFF) ||
-                    vp.hasState(vp.mState, VTP_STATE_ROAMING) ||
-                    vp.hasState(vp.mState, VTP_STATE_MA_CRASH)) &&
-                    VideoProfile.isVideo(requestProfile.getVideoState())) {
+                if (VideoProfile.isVideo(requestProfile.getVideoState())) {
+                    if (vp.hasState(vp.mState, VTP_STATE_MA_CRASH)) {
+                        //MA crash, reject upgrade request directly
+                        VideoProfile audioProfile = new VideoProfile(VideoProfile.STATE_AUDIO_ONLY, VideoProfile.QUALITY_MEDIUM);
+                        vp.mLastRequestVideoProfile = audioProfile;
 
-                    VideoProfile audioProfile = new VideoProfile(VideoProfile.STATE_AUDIO_ONLY, VideoProfile.QUALITY_MEDIUM);
-                    vp.mLastRequestVideoProfile = audioProfile;
+                        vp.onSendSessionModifyResponse(vp.mLastRequestVideoProfile);
+                        Log.d(TAG, "[ID=" + vp.getId() + "] [onSendSessionModifyResponse] Reject it by have MA CRASH:" + vp.mState);
+                        return;
 
-                    vp.onSendSessionModifyResponse(vp.mLastRequestVideoProfile);
-                    Log.d(TAG, "[ID=" + vp.getId() + "] [onSendSessionModifyRequest] Reject it by state:" + vp.mState);
-                    return;
+                    } else if (!mVTProviderUtil.isVideoCallOn(vp.mSimId) ||
+                            vp.hasState(vp.mState, VTP_STATE_DATA_OFF) ||
+                            vp.hasState(vp.mState, VTP_STATE_ROAMING)) {
+
+                        //vilte off or data unvailable, if not wifi call, reject upgrade directly
+                        if (!(vp.mCallRat == ImsVTProviderUtil.CALL_RAT_WIFI && mVTProviderUtil.isViWifiOn(vp.mSimId))) {
+                            VideoProfile audioProfile = new VideoProfile(VideoProfile.STATE_AUDIO_ONLY, VideoProfile.QUALITY_MEDIUM);
+                            vp.mLastRequestVideoProfile = audioProfile;
+
+                            vp.onSendSessionModifyResponse(vp.mLastRequestVideoProfile);
+                            Log.d(TAG, "[ID=" + vp.getId() + "] [onSendSessionModifyResponse] Reject it by state:" + vp.mState);
+                            return;
+                        }
+                    }
                 }
 
                 int decision = vp.doSessionModifyDecision(SESSION_MODIFICATION_OVERLAP_ACTION_APP, currentProfile, requestProfile);
@@ -1930,7 +1991,7 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
 
                 } else {
 
-                    Log.e(TAG, "[ID=" + vp.getId() + "] [onReceiveSessionModifyRequest] should not in this case");
+                    Log.e(TAG, "[ID=" + vp.getId() + "] [onSendSessionModifyResponse] should not in this case");
                     vp.setDuringSessionRemoteRequest(true);
                     vp.onSendSessionModifyResponse(requestProfile);
 
@@ -1938,14 +1999,31 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
                 break;
             }
 
-            case SESSION_EVENT_RECV_CANCEL_SESSION_IND:
-                Log.d(TAG, "postEventFromNative : msg = " + "SESSION_EVENT_RECV_CANCEL_SESSION_IND");
+            case SESSION_EVENT_RECV_ENHANCE_SESSION_IND:
+                Log.d(TAG, "postEventFromNative : msg = " + "SESSION_EVENT_RECV_ENHANCE_SESSION_IND");
+
+                if (SESSION_INDICATION_CANCEL == arg1) {
+                    Log.d(TAG, "SESSION_INDICATION_CANCEL");
+                    vp.setDuringSessionRemoteRequest(false);
+
+                } else if (SESSION_INDICATION_EARLY_MEDIA == arg1) {
+                    Log.d(TAG, "SESSION_INDICATION_EARLY_MEDIA, early media=" + arg2);
+
+                    if(arg2 == EARLY_MEDIA_STOP) {
+                        vp.mDuringEarlyMedia = false;
+
+                    } else if (arg2 == EARLY_MEDIA_START) {
+                        vp.mDuringEarlyMedia = true;
+                    }
+
+                    // Here can comment out the "return" to received session modify indication
+                    // for customization
+                    return;
+                }
 
                 VideoProfile IndicationProfile = mVTProviderUtil.unPackToVdoProfile((String) obj1);
-
-                vp.setDuringSessionRemoteRequest(false);
-
                 vp.receiveSessionModifyRequest(IndicationProfile);
+
                 break;
 
             case SESSION_EVENT_RECV_SESSION_CONFIG_RSP: {
@@ -1986,26 +2064,57 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
 
                     switch (arg1) {
                         case SESSION_MODIFY_OK:
-                            if ((!mVTProviderUtil.isVideoCallOn(vp.mSimId) ||
-                                vp.hasState(vp.mState, VTP_STATE_DATA_OFF) ||
-                                vp.hasState(vp.mState, VTP_STATE_ROAMING) ||
-                                vp.hasState(vp.mState, VTP_STATE_MA_CRASH)) &&
-                                VideoProfile.isVideo(responseProfile.getVideoState())) {
 
-                                VideoProfile audioProfile = new VideoProfile(VideoProfile.STATE_AUDIO_ONLY, VideoProfile.QUALITY_MEDIUM);
-                                vp.mLastRequestVideoProfile = audioProfile;
-                                vp.reSendLastSessionModify();
-                                return;
+                            if (VideoProfile.isVideo(responseProfile.getVideoState())) {
+                                if (vp.hasState(vp.mState, VTP_STATE_MA_CRASH)) {
+
+                                    VideoProfile audioProfile = new VideoProfile(VideoProfile.STATE_AUDIO_ONLY, VideoProfile.QUALITY_MEDIUM);
+                                    vp.mLastRequestVideoProfile = audioProfile;
+                                    vp.reSendLastSessionModify();
+
+                                    Log.d(TAG, "[ID=" + vp.getId() + "] [reSendLastSessionModify] by have MA CRASH:" + vp.mState);
+                                    return;
+                                } else if (!mVTProviderUtil.isVideoCallOn(vp.mSimId) ||
+                                        vp.hasState(vp.mState, VTP_STATE_DATA_OFF) ||
+                                        vp.hasState(vp.mState, VTP_STATE_ROAMING)) {
+
+                                    //vilte off or data unvailable, if not wifi call, downgrade to voice call.
+                                    if (!(vp.mCallRat == ImsVTProviderUtil.CALL_RAT_WIFI && mVTProviderUtil.isViWifiOn(vp.mSimId))) {
+                                        VideoProfile audioProfile = new VideoProfile(VideoProfile.STATE_AUDIO_ONLY, VideoProfile.QUALITY_MEDIUM);
+                                        vp.mLastRequestVideoProfile = audioProfile;
+                                        vp.reSendLastSessionModify();
+
+                                        Log.d(TAG, "[ID=" + vp.getId() + "] [reSendLastSessionModify] not viwifi call, downgrade by state:" + vp.mState);
+                                        return;
+                                    }
+                                }
                             }
 
                             state = Connection.VideoProvider.SESSION_MODIFY_REQUEST_SUCCESS;
                             break;
+
                         case SESSION_MODIFY_NOACTIVESTATE: {
-                            // Need resend session modify when call is not active until call become active
-                            vp.reSendLastSessionModify();
-                            return;
+                            // If during early medai and session modify fail with call not active, just response success to InCallUI
+                            if (vp.mDuringEarlyMedia) {
+                                Log.d(TAG, "postEventFromNative : msg = SESSION_EVENT_RECV_SESSION_CONFIG_RSP (during early media)");
+
+                                state = Connection.VideoProvider.SESSION_MODIFY_REQUEST_SUCCESS;
+                                vp.receiveSessionModifyResponseInternal(
+                                        state,
+                                        mVTProviderUtil.unPackToVdoProfile((String) obj1),
+                                        mVTProviderUtil.unPackToVdoProfile((String) obj1));
+                                return;
+
+                            } else {
+                                // Need resend session modify when call is not active until call become active
+                                vp.reSendLastSessionModify();
+                                return;
+                            }
                         }
+
                         case SESSION_MODIFY_NONEED:
+                            state = Connection.VideoProvider.SESSION_MODIFY_REQUEST_SUCCESS;
+                            break;
                         case SESSION_MODIFY_INVALIDPARA:
                             state = Connection.VideoProvider.SESSION_MODIFY_REQUEST_INVALID;
                             break;
@@ -2140,12 +2249,7 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
                 int major_sim_id = 0;
                 int ImsCount = 1;
 
-                try {
-                    ImsCount = mVTProviderUtil.getImsExtCallUtil().getModemMultiImsCount();
-                } catch (ImsException e) {
-                    Log.e(TAG, "getModemMultiImsCount with exception:" + e);
-                }
-
+                ImsCount = ImsService.getInstance(mVTProviderUtil.mContext).getModemMultiImsCount();
                 // Not MIMS case, set major sim id to get correct codec capability
                 if (ImsCount <= 1) {
 
@@ -2288,25 +2392,25 @@ public class ImsVTProvider extends ImsVideoCallProvider implements
 
             case SESSION_EVENT_ERROR_SERVER_DIED:
                 Log.d(TAG, "postEventFromNative : msg = MSG_ERROR_SERVER_DIED");
+
+                mVTProviderUtil.releaseVTSourceAll();
+
                 mVTProviderUtil.quitAllThread();
                 mVTProviderUtil.recordRemoveAll();
                 updateDefaultId();
-
-                // because the event may happen when no call exist
-                // need to check firstly
-                if (vp != null) {
-                    // Call release to leave VTSource handler thread
-                    vp.getSource().release();
-
-                    vp.handleCallSessionEvent(msg);
-                    vp.mProviderHandlerThread.quitSafely();
-                }
 
                 ImsVTProviderUtil.getInstance().reInitRefVTP();
                 break;
 
             case SESSION_EVENT_ERROR_CAMERA_CRASHED:
                 Log.d(TAG, "postEventFromNative : msg = MSG_ERROR_CAMERA_CRASHED");
+
+                vp.handleMaErrorProcess();
+                vp.handleCallSessionEvent(msg);
+                break;
+
+            case SESSION_EVENT_ERROR_BIND_PORT:
+                Log.d(TAG, "postEventFromNative : msg = SESSION_EVENT_ERROR_BIND_PORT");
 
                 vp.handleMaErrorProcess();
                 vp.handleCallSessionEvent(msg);

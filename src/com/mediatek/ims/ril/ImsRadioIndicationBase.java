@@ -37,27 +37,14 @@ package com.mediatek.ims.ril;
 
 import java.util.ArrayList;
 
-import vendor.mediatek.hardware.radio.V3_0.EtwsNotification;
-import vendor.mediatek.hardware.radio.V3_13.IImsRadioIndication;
-import vendor.mediatek.hardware.radio.V3_0.IncomingCallNotification;
-import vendor.mediatek.hardware.radio.V3_0.ImsConfParticipant;
+import vendor.mediatek.hardware.mtkradioex.V1_0.EtwsNotification;
+import vendor.mediatek.hardware.mtkradioex.V1_6.IImsRadioIndication;
+import vendor.mediatek.hardware.mtkradioex.V1_0.IncomingCallNotification;
+import vendor.mediatek.hardware.mtkradioex.V1_0.ImsConfParticipant;
+import vendor.mediatek.hardware.mtkradioex.V1_0.ImsRegStatusInfo;
+import vendor.mediatek.hardware.mtkradioex.V1_0.CallInfoType;
 
-import android.hardware.radio.V1_1.NetworkScanResult;
-import android.hardware.radio.V1_1.KeepaliveStatus;
-
-import android.hardware.radio.V1_0.CdmaCallWaiting;
-import android.hardware.radio.V1_0.CdmaInformationRecords;
-import android.hardware.radio.V1_0.CdmaSignalInfoRecord;
 import android.hardware.radio.V1_0.CdmaSmsMessage;
-import android.hardware.radio.V1_0.CellInfo;
-import android.hardware.radio.V1_0.HardwareConfig;
-import android.hardware.radio.V1_0.LceDataInfo;
-import android.hardware.radio.V1_0.PcoDataInfo;
-import android.hardware.radio.V1_0.RadioCapability;
-import android.hardware.radio.V1_0.SetupDataCallResult;
-import android.hardware.radio.V1_0.SignalStrength;
-import android.hardware.radio.V1_0.SimRefreshResult;
-import android.hardware.radio.V1_0.StkCcUnsolSsResult;
 import android.hardware.radio.V1_0.SuppSvcNotification;
 import android.hidl.base.V1_0.DebugInfo;
 import android.os.HwParcel;
@@ -65,7 +52,7 @@ import android.os.IHwBinder;
 import android.os.IHwBinder.DeathRecipient;
 import android.os.RemoteException;
 
-import vendor.mediatek.hardware.radio.V3_0.Dialog;
+import vendor.mediatek.hardware.mtkradioex.V1_0.Dialog;
 
 public class ImsRadioIndicationBase extends IImsRadioIndication.Stub {
 
@@ -109,13 +96,8 @@ public class ImsRadioIndicationBase extends IImsRadioIndication.Stub {
     }
 
     @Override
-    public void imsBearerActivation(int type, int data, String arg2) {
-        riljLoge("No implementation in imsBearerActivation");
-    }
-
-    @Override
-    public void imsBearerDeactivation(int type, int data, String arg2) {
-        riljLoge("No implementation in imsBearerDeactivation");
+    public void imsBearerStateNotify(int type, int data, int action, String arg2) {
+        riljLoge("No implementation in imsBearerStateNotify");
     }
 
     @Override
@@ -155,28 +137,12 @@ public class ImsRadioIndicationBase extends IImsRadioIndication.Stub {
     }
 
     @Override
-    public void imsRtpInfo(int type, String pdnId, String networkId, String timer,
-                           String sendPktLost, String recvPktLost) {
-
-        riljLoge("No implementation in imsRtpInfo");
-    }
-
-    @Override
-    public void imsRtpInfoReport(int type, String pdnId, String networkId, String timer,
-                           String sendPktLost, String recvPktLost, String jitter, String delay) {
-
-        riljLoge("No implementation in imsRtpInfoReport");
-    }
-
-    @Override
     public void incomingCallIndication(int type, IncomingCallNotification data) {
         riljLoge("No implementation in incomingCallIndication");
     }
 
     @Override
-    public void onUssi(int type, String clazz, String status, String str,
-                       String lang, String errorcode, String alertingPattern,
-                       String sipCause) {
+    public void onUssi(int type, int ussdModeType, String msg) {
 
         riljLoge("No implementation in onUssi");
     }
@@ -192,6 +158,12 @@ public class ImsRadioIndicationBase extends IImsRadioIndication.Stub {
     public void onVolteSubscription(int type, int status) {
 
         riljLoge("No implementation in onVolteSubscription");
+    }
+
+    @Override
+    public void suppSvcNotify(int type, SuppSvcNotification data) {
+
+        riljLoge("No implementation in suppSvcNotify");
     }
 
     @Override
@@ -220,356 +192,6 @@ public class ImsRadioIndicationBase extends IImsRadioIndication.Stub {
                                           String callId, String pType, String urcIdx,
                                           String totalUrcCount, String rawData) {
         riljLoge("No implementation in lteMessageWaitingIndication");
-    }
-
-    /// ==== AOSP APIs below ============================================================
-
-    @Override
-    public void callRing(int type, boolean data, CdmaSignalInfoRecord arg2) {
-        riljLoge("No implementation in callRing");
-    }
-
-    @Override
-    public void callStateChanged(int type) {
-        riljLoge("No implementation in callStateChanged");
-    }
-
-    @Override
-    public void cdmaCallWaiting(int type, CdmaCallWaiting data) {
-        riljLoge("No implementation in cdmaCallWaiting");
-    }
-
-    @Override
-    public void cdmaInfoRec(int type, CdmaInformationRecords data) {
-        riljLoge("No implementation in cdmaInfoRec");
-    }
-
-    @Override
-    public void cdmaNewSms(int type, CdmaSmsMessage data) {
-        riljLoge("No implementation in cdmaNewSms");
-    }
-
-    @Override
-    public void cdmaOtaProvisionStatus(int type, int data) {
-        riljLoge("No implementation in cdmaOtaProvisionStatus");
-    }
-
-    @Override
-    public void cdmaPrlChanged(int type, int data) {
-        riljLoge("No implementation in cdmaPrlChanged");
-    }
-
-    @Override
-    public void cdmaRuimSmsStorageFull(int type) {
-        riljLoge("No implementation in cdmaRuimSmsStorageFull");
-    }
-
-    @Override
-    public void cdmaSubscriptionSourceChanged(int type, int data) {
-        riljLoge("No implementation in cdmaSubscriptionSourceChanged");
-    }
-
-    @Override
-    public void cellInfoList(int type, ArrayList<CellInfo> data) {
-        riljLoge("No implementation in cellInfoList");
-    }
-
-    @Override
-    public void currentSignalStrength(int type, SignalStrength data) {
-        riljLoge("No implementation in currentSignalStrength");
-    }
-
-    @Override
-    public void dataCallListChanged(int type,
-            ArrayList<SetupDataCallResult> data) {
-
-        riljLoge("No implementation in dataCallListChanged");
-    }
-
-    @Override
-    public void enterEmergencyCallbackMode(int type) {
-        riljLoge("No implementation in enterEmergencyCallbackMode");
-    }
-
-    @Override
-    public void exitEmergencyCallbackMode(int type) {
-        riljLoge("No implementation in exitEmergencyCallbackMode");
-    }
-
-    @Override
-    public void hardwareConfigChanged(int type, ArrayList<HardwareConfig> data) {
-        riljLoge("No implementation in hardwareConfigChanged");
-    }
-
-    @Override
-    public void imsNetworkStateChanged(int type) {
-        riljLoge("No implementation in imsNetworkStateChanged");
-    }
-
-    @Override
-    public void indicateRingbackTone(int type, boolean data) {
-        riljLoge("No implementation in indicateRingbackTone");
-    }
-
-    @Override
-    public void lceData(int type, LceDataInfo data) {
-        riljLoge("No implementation in lceData");
-    }
-
-    @Override
-    public void modemReset(int type, String data) {
-        riljLoge("No implementation in modemReset");
-    }
-
-    @Override
-    public void networkStateChanged(int type) {
-        riljLoge("No implementation in networkStateChanged");
-    }
-
-    @Override
-    public void newBroadcastSms(int type, ArrayList<Byte> data) {
-        riljLoge("No implementation in newBroadcastSms");
-    }
-
-    @Override
-    public void newSms(int type, ArrayList<Byte> data) {
-        riljLoge("No implementation in newSms");
-    }
-
-    @Override
-    public void newSmsOnSim(int type, int data) {
-        riljLoge("No implementation in newSmsOnSim");
-    }
-
-    @Override
-    public void newSmsStatusReport(int type, ArrayList<Byte> data) {
-        riljLoge("No implementation in newSmsStatusReport");
-    }
-
-    @Override
-    public void nitzTimeReceived(int type, String data, long arg2) {
-        riljLoge("No implementation in nitzTimeReceived");
-    }
-
-    @Override
-    public void onSupplementaryServiceIndication(int type,
-            StkCcUnsolSsResult data) {
-
-        riljLoge("No implementation in onSupplementaryServiceIndication");
-    }
-
-    @Override
-    public void onUssd(int type, int data, String arg2) {
-        riljLoge("No implementation in onUssd");
-    }
-
-    @Override
-    public void pcoData(int type, PcoDataInfo data) {
-        riljLoge("No implementation in pcoData");
-    }
-
-    @Override
-    public void radioCapabilityIndication(int type, RadioCapability data) {
-        riljLoge("No implementation in radioCapabilityIndication");
-    }
-
-    @Override
-    public void radioStateChanged(int type, int data) {
-        riljLoge("No implementation in radioStateChanged");
-    }
-
-    @Override
-    public void resendIncallMute(int type) {
-        riljLoge("No implementation in resendIncallMute");
-    }
-
-    @Override
-    public void restrictedStateChanged(int type, int data) {
-        riljLoge("No implementation in restrictedStateChanged");
-    }
-
-    @Override
-    public void rilConnected(int type) {
-        riljLoge("No implementation in rilConnected");
-    }
-
-    @Override
-    public void simRefresh(int type, SimRefreshResult data) {
-        riljLoge("No implementation in simRefresh");
-    }
-
-    @Override
-    public void simSmsStorageFull(int type) {
-        riljLoge("No implementation in simSmsStorageFull");
-    }
-
-    @Override
-    public void simStatusChanged(int type) {
-        riljLoge("No implementation in simStatusChanged");
-    }
-
-    @Override
-    public void srvccStateNotify(int type, int data) {
-        riljLoge("No implementation in srvccStateNotify");
-    }
-
-    @Override
-    public void stkCallControlAlphaNotify(int type, String data) {
-        riljLoge("No implementation in stkCallControlAlphaNotify");
-    }
-
-    @Override
-    public void stkCallSetup(int type, long data) {
-        riljLoge("No implementation in stkCallSetup");
-    }
-
-    @Override
-    public void stkEventNotify(int type, String data) {
-        riljLoge("No implementation in stkEventNotify");
-    }
-
-    @Override
-    public void stkProactiveCommand(int type, String data) {
-        riljLoge("No implementation in stkProactiveCommand");
-    }
-
-    @Override
-    public void stkSessionEnd(int type) {
-        riljLoge("No implementation in stkSessionEnd");
-    }
-
-    @Override
-    public void subscriptionStatusChanged(int type, boolean data) {
-        riljLoge("No implementation in subscriptionStatusChanged");
-    }
-
-    @Override
-    public void suppSvcNotify(int type, SuppSvcNotification data) {
-        riljLoge("No implementation in suppSvcNotify");
-    }
-
-    @Override
-    public void voiceRadioTechChanged(int type, int data) {
-        riljLoge("No implementation in voiceRadioTechChanged");
-    }
-
-    @Override
-    public void imsEventPackageIndication(int type,
-                                          String callId, String ptype, String urcIdx,
-                                          String totalUrcCount, String rawData) {
-        riljLoge("No implementation in imsEventPackageIndication");
-    }
-
-    @Override
-    public void imsDeregDone(int type) {
-        riljLoge("No implementation in imsDeregDone");
-    }
-
-    @Override
-    public void multiImsCount(int type, int count) {
-        riljLoge("No implementation in multiImsCount");
-    }
-
-    @Override
-    public void imsSupportEcc(int type, int supportLteEcc) {
-        riljLoge("No implementation in isSupportLteEcc");
-    }
-
-    @Override
-    public void imsRedialEmergencyIndication(int type, String callId) {
-        riljLoge("No implementation in imsRedialEmergencyIndication");
-    }
-
-    @Override
-    public void keepaliveStatus(int type, KeepaliveStatus status) {
-        riljLoge("No implementation in keepaliveStatus");
-    }
-
-    @Override
-    public void carrierInfoForImsiEncryption(int type) {
-        riljLoge("No implementation in carrierInfoForImsiEncryption");
-    }
-
-    @Override
-    public void networkScanResult(int type, NetworkScanResult result) {
-        riljLoge("No implementation in networkScanResult");
-    }
-
-    @Override
-    public void imsRadioInfoChange(int type, String iid, String info) {
-        riljLoge("No implementation in imsRadioInfoChange");
-    }
-
-    /**
-    * Reports speech codec information
-    *
-    * @param type Type of radio indication
-    * @param info integer type speech codec info
-    */
-    @Override
-    public void speechCodecInfoIndication(int type, int info) {
-        riljLoge("No implementation in speechCodecInfoIndication");
-    }
-
-    /**
-     * Indicates current signal strength of the radio.
-     * AOSP Radio 1.2 Interfaces
-     *
-     * @param type Type of radio indication
-     * @param signalStrength SignalStrength information
-     */
-    @Override
-    public void currentSignalStrength_1_2(int type,
-                android.hardware.radio.V1_2.SignalStrength signalStrength) {
-        riljLoge("No implementation in currentSignalStrength_1_2");
-    }
-
-    /**
-     * AOSP Radio 1.2 Interfaces
-     *
-     * @param type Type of radio indication
-     * @param signalStrength SignalStrength information
-     */
-    @Override
-    public void currentPhysicalChannelConfigs(int type,
-                ArrayList<android.hardware.radio.V1_2.PhysicalChannelConfig> configs) {
-        riljLoge("No implementation in currentPhysicalChannelConfigs");
-    }
-
-    /**
-     * AOSP Radio 1.2 Interfaces
-     *
-     * @param type Type of radio indication
-     * @param lce LinkCapacityEstimate information
-     */
-    @Override
-    public void currentLinkCapacityEstimate(int type,
-                android.hardware.radio.V1_2.LinkCapacityEstimate lce) {
-        riljLoge("No implementation in currentLinkCapacityEstimate");
-    }
-
-    /**
-     * AOSP Radio 1.2 Interfaces
-     *
-     * @param type Type of radio indication
-     * @param lce LinkCapacityEstimate information
-     */
-    @Override
-    public void cellInfoList_1_2(int type,
-                                 ArrayList<android.hardware.radio.V1_2.CellInfo> records) {
-        riljLoge("No implementation in cellInfoList_1_2");
-    }
-
-    /**
-     * AOSP Radio 1.2 Interfaces
-     *
-     * @param type Type of radio indication
-     * @param result NetworkScanResult information
-     */
-    @Override
-    public void networkScanResult_1_2(int type,
-                                      android.hardware.radio.V1_2.NetworkScanResult result) {
-        riljLoge("No implementation in networkScanResult_1_2");
     }
 
     /**
@@ -623,9 +245,126 @@ public class ImsRadioIndicationBase extends IImsRadioIndication.Stub {
     }
 
     @Override
-    public void incomingCallAdditionalInfoInd(int indicationType, ArrayList<String> info) {
-        riljLoge("No implementation in incomingCallAdditionalInfoInd");
+    public void imsRtpInfo(int type, String pdnId, String networkId, String timer,
+                           String sendPktLost, String recvPktLost, String jitter, String delay) {
+
+        riljLoge("No implementation in imsRtpInfoReport");
     }
+
+    @Override
+    public void imsRedialEmergencyIndication(int type, String callId) {
+        riljLoge("No implementation in imsRedialEmergencyIndication");
+    }
+
+    /**
+    * Reports speech codec information
+    *
+    * @param type Type of radio indication
+    * @param info integer type speech codec info
+    */
+    @Override
+    public void speechCodecInfoIndication(int type, int info) {
+        riljLoge("No implementation in speechCodecInfoIndication");
+    }
+
+    @Override
+    public void imsRadioInfoChange(int type, String iid, String info) {
+        riljLoge("No implementation in imsRadioInfoChange");
+    }
+
+    @Override
+    public void imsSupportEcc(int type, int supportLteEcc) {
+        riljLoge("No implementation in isSupportLteEcc");
+    }
+
+    @Override
+    public void multiImsCount(int type, int count) {
+        riljLoge("No implementation in multiImsCount");
+    }
+
+    @Override
+    public void imsEventPackageIndication(int type,
+                                          String callId, String ptype, String urcIdx,
+                                          String totalUrcCount, String rawData) {
+        riljLoge("No implementation in imsEventPackageIndication");
+    }
+
+    @Override
+    public void imsDeregDone(int type) {
+        riljLoge("No implementation in imsDeregDone");
+    }
+
+    // M: RTT @{
+    @Override
+    public void rttModifyResponse(int indicationType, int callid, int result) {
+        riljLoge("No implementation in rttModifyResponse");
+    }
+
+    @Override
+    public void rttTextReceive(int indicationType, int callid, int length, String text) {
+        riljLoge("No implementation in rttTextReceive");
+    }
+
+    @Override
+    public void rttModifyRequestReceive(int indicationType, int callid, int rttType) {
+        riljLoge("No implementation in rttModifyRequestReceive");
+    }
+
+    @Override
+    public void rttCapabilityIndication(int indicationType, int callid, int localCapability,
+            int remoteCapability, int localStatus, int remoteStatus) {
+        riljLoge("No implementation in rttCapabilityIndication");
+    }
+
+    @Override
+    public void audioIndication(int indicationType, int callId, int audio) {
+        riljLoge("No implementation in audioIndication");
+    }
+    // @}
+
+    @Override
+    public void sendVopsIndication(int indicationType, int vops) {
+        riljLoge("No implementation in sendVopsIndication");
+    }
+
+    @Override
+    public void sipHeaderReport(int indicationType, ArrayList<String> data) {
+        riljLoge("No implementation in sipHeaderReport");
+    }
+
+    @Override
+    public void callAdditionalInfoInd(int indicationType,
+            int ciType,
+            ArrayList<String> info) {
+        riljLoge("No implementation in callAdditionalInfoInd");
+    }
+
+    @Override
+    public void callRatIndication(int indicationType, int domain, int rat) {
+        riljLoge("No implementation in callRatIndication");
+    }
+
+    @Override
+    public void sipRegInfoInd(int indicationType, int account_id, int response_code,
+            ArrayList<String>  info) {
+        riljLoge("No implementation in sipRegInfoInd");
+    }
+
+    @Override
+    public void imsRegStatusReport(int type, ImsRegStatusInfo report) {
+        riljLoge("No implementation in imsRegStatusReport");
+    }
+
+    @Override
+    public void imsRegInfoInd(int indicationType, ArrayList<Integer>  info) {
+        riljLoge("No implementation in imsRegInfoInd");
+    }
+
+    @Override
+    public void onSsacStatus(int type, ArrayList<Integer> status) {
+        riljLoge("No implementation in onSsacStatus");
+    }
+
     /**
      * Log for error
      * @param msg

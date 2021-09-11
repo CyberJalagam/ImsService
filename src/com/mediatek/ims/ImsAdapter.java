@@ -55,7 +55,7 @@ import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyIntents;
 //import com.android.internal.telephony.gsm.GSMPhone;
 
-import com.mediatek.internal.telephony.MtkPhoneConstants;
+import com.mediatek.ims.MtkImsConstants;
 
 import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
@@ -487,7 +487,6 @@ public class ImsAdapter extends Handler {
     private static ImsAdapter mInstance;
     private static int mNumOfPhones = 0;
     private static boolean[] misImsAdapterEnabled;
-    private static boolean[] mInitialDisable;
     private static boolean mImsServiceUp = false;
 
     private boolean IS_USER_BUILD = "user".equals(Build.TYPE);
@@ -512,11 +511,9 @@ public class ImsAdapter extends Handler {
         mNumOfPhones = TelephonyManager.getDefault().getPhoneCount();
 
         misImsAdapterEnabled = new boolean[mNumOfPhones];
-        mInitialDisable = new boolean[mNumOfPhones];
 
         for (int i = 0; i < mNumOfPhones; i++) {
             misImsAdapterEnabled[i] = false;
-            mInitialDisable[i] = true;
         }
 
         mIO.start();
@@ -610,14 +607,11 @@ public class ImsAdapter extends Handler {
         Log.d("@M_" + TAG,
                 "disableImsAdapter(): misImsAdapterEnabled[phoneId]=" + misImsAdapterEnabled[phoneId] +
                 ", isNormalDisable = " + isNormalDisable +
-                ", phoneId = " + phoneId + ", initial disable=" + mInitialDisable[phoneId]);
+                ", phoneId = " + phoneId);
 
         synchronized (ImsEnabledThreadLock) {
-            // Also allow disable Ims Stack if ImsAdapter is just initialized and
-            // get +EIMCFLAG: 0 from the modem
-            if(misImsAdapterEnabled[phoneId] || (mInitialDisable[phoneId] && isNormalDisable)) {
+            if(misImsAdapterEnabled[phoneId]) {
                 misImsAdapterEnabled[phoneId] = false;
-                mInitialDisable[phoneId] = false;
 
                 disableImsStack(phoneId);
 
@@ -700,7 +694,7 @@ public class ImsAdapter extends Handler {
          */
         public static int getDefaultVoltePhoneId() {
             int phoneId =
-                    SystemProperties.getInt(MtkPhoneConstants.PROPERTY_CAPABILITY_SWITCH, 1) - 1;
+                    SystemProperties.getInt(MtkImsConstants.PROPERTY_CAPABILITY_SWITCH, 1) - 1;
             if (phoneId < 0 || phoneId >= TelephonyManager.getDefault().getPhoneCount()) {
                 phoneId = SubscriptionManager.INVALID_PHONE_INDEX;
             }

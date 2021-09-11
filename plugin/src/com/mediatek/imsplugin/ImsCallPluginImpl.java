@@ -70,23 +70,6 @@ public class ImsCallPluginImpl extends ImsCallPluginBase {
     }
 
     @Override
-    public int getModemMultiImsCount() throws ImsException {
-
-        int mdMultiImsCount = -1;
-
-        // we add while loop to let user no need to handle the -1 case
-        do {
-
-            mdMultiImsCount = MtkImsManagerEx.getInstance().getModemMultiImsCount();
-
-            Log.d(TAG, "[getModemMultiImsCount] getModemMultiImsCount = " + mdMultiImsCount);
-
-        } while(-1 == mdMultiImsCount);
-
-        return mdMultiImsCount;
-    }
-
-    @Override
     public boolean isSupportMims() {
         return MtkImsManager.isSupportMims();
     }
@@ -122,21 +105,6 @@ public class ImsCallPluginImpl extends ImsCallPluginBase {
     @Override
     public int getUpgradeCancelTimeoutFlag() {
         return MtkVideoProfile.STATE_CANCEL_UPGRADE_FOR_TIMEOUT;
-    }
-
-    @Override
-    public boolean isSpecialEmergencyNumber(int subId, String dialString) {
-        return MtkPhoneNumberUtils.isSpecialEmergencyNumber(subId, dialString);
-    }
-
-    @Override
-    public void setSpecificEccCategory(int eccCat) {
-        MtkPhoneNumberUtils.setSpecificEccCategory(eccCat);
-    }
-
-    @Override
-    public int getServiceCategoryFromEcc(String number) {
-        return MtkPhoneNumberUtils.getServiceCategoryFromEcc(number);
     }
 
     @Override

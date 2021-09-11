@@ -51,6 +51,7 @@ import com.mediatek.ims.internal.IMtkImsService;
 import com.mediatek.ims.internal.IMtkImsConfig;
 import com.mediatek.ims.internal.IMtkImsUt;
 import com.mediatek.ims.internal.ImsVTProviderUtil;
+import com.mediatek.ims.internal.IMtkImsRegistrationListener;
 
 import com.android.ims.internal.IImsEcbm;
 
@@ -59,7 +60,11 @@ import android.telephony.ims.aidl.IImsSmsListener;
 // SMS-END
 import com.android.ims.internal.IImsRegistrationListener;
 import com.android.ims.ImsServiceClass;
+import android.telephony.ims.feature.CapabilityChangeRequest;
 
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class MtkImsService extends IMtkImsService.Stub {
     private static final String LOG_TAG = "MtkImsService";
@@ -155,13 +160,8 @@ public class MtkImsService extends IMtkImsService.Stub {
     }
 
     @Override
-    public IMtkImsCallSession getPendingMtkCallSession(String callId) {
-        return mImsService.onGetPendingMtkCallSession(callId);
-    }
-
-    @Override
-    public IImsUt getUtInterface(int phoneId) {
-        return mImsService.onGetUtInterface(phoneId);
+    public IMtkImsCallSession getPendingMtkCallSession(int phoneId, String callId) {
+        return mImsService.onGetPendingMtkCallSession(phoneId, callId);
     }
 
     @Override
@@ -229,7 +229,33 @@ public class MtkImsService extends IMtkImsService.Stub {
     // SMS-END
 
     public void registerProprietaryImsListener(int phoneId,
-            IImsRegistrationListener listener) {
-        mImsService.onAddRegistrationListener(phoneId, ImsServiceClass.MMTEL, listener);
+            IImsRegistrationListener listener, IMtkImsRegistrationListener mtklistener,
+            boolean notifyOnly) {
+        mImsService.onAddRegistrationListener(phoneId, ImsServiceClass.MMTEL, listener,
+                mtklistener, notifyOnly);
+    }
+
+    // Client API
+    public void setMTRedirect(int phoneId, boolean enable) {
+        mImsService.setMTRedirect(phoneId, enable);
+    }
+
+    public void fallBackAospMTFlow(int phoneId) {
+        mImsService.fallBackAospMTFlow(phoneId);
+    }
+
+    public void setSipHeader(int phoneId, Map extraHeaders, String fromUri) {
+        mImsService.setSipHeader(phoneId, (HashMap<String, String>) extraHeaders, fromUri);
+    }
+    //
+
+    public void changeEnabledCapabilities(int phoneId, CapabilityChangeRequest request) {
+        mImsService.changeEnabledCapabilities(phoneId, request);
+    }
+
+    public void setImsPreCallInfo(int phoneId, int mode, String address, String fromUri,
+            Map extraHeaders, String[] location) {
+        mImsService.setImsPreCallInfo(phoneId, mode, address, fromUri,
+                (HashMap<String, String>) extraHeaders, location);
     }
 }

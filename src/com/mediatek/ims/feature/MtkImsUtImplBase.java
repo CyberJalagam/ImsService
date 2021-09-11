@@ -112,6 +112,11 @@ public class MtkImsUtImplBase {
         public String getXcapConflictErrorMessage() {
             return MtkImsUtImplBase.this.getXcapConflictErrorMessage();
         }
+
+        @Override
+        public int queryCFForServiceClass(int condition, String number, int serviceClass) {
+            return MtkImsUtImplBase.this.queryCFForServiceClass(condition, number, serviceClass);
+        }
     };
 
 
@@ -174,6 +179,14 @@ public class MtkImsUtImplBase {
     }
 
     public void setupXcapUserAgentString(String userAgent) {
+    }
+
+    /**
+     * Retrieves the configuration of the call forward.
+     * The return value of ((AsyncResult)result.obj) is an array of {@link ImsCallForwardInfo}.
+     */
+    public int queryCFForServiceClass(int condition, String number, int serviceClass) {
+        return -1;
     }
 
     /**

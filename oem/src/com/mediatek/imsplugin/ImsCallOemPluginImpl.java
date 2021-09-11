@@ -33,14 +33,20 @@
  * applicable license agreements with MediaTek Inc.
  */
 
-package com.mediatek.ims.internal.op;
+package com.mediatek.imsplugin;
 
+import com.mediatek.ims.plugin.impl.ImsCallOemPluginBase;
 import android.content.Context;
-import com.mediatek.ims.internal.op.OpImsServiceCall;
+import android.util.Log;
 
-public class OpImsServiceCallBase implements OpImsServiceCall {
+public class ImsCallOemPluginImpl extends ImsCallOemPluginBase {
 
-    public OpImsServiceCallBase(Context context, int phoneId) {
+    private static final String TAG = "ImsCallOemPluginImpl";
 
+    private Context                 mContext;
+
+    public ImsCallOemPluginImpl(Context context) {
+        super(context);
+        mContext = context;
     }
 }

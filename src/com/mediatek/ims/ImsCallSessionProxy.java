@@ -35,6 +35,7 @@
 
 package com.mediatek.ims;
 
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -59,7 +60,7 @@ import android.provider.Settings;
 
 import android.telecom.VideoProfile;
 
-import android.telephony.CarrierConfigManager;
+import android.telephony.AccessNetworkConstants;
 import android.telephony.ims.stub.ImsCallSessionImplBase;
 import android.telephony.ims.aidl.IImsCallSessionListener;
 import android.telephony.ims.ImsCallSessionListener;
@@ -68,9 +69,12 @@ import android.telephony.ims.ImsCallSession;
 import android.telephony.ims.ImsConferenceState;
 import android.telephony.ims.ImsReasonInfo;
 import android.telephony.ims.ImsStreamMediaProfile;
+import android.telephony.ims.ImsSuppServiceNotification;
+import android.telephony.NetworkRegistrationInfo;
 import android.telephony.PhoneNumberUtils;
 import android.telephony.Rlog;
 import android.telephony.ServiceState;
+import android.telephony.TelephonyManager;
 
 import android.text.TextUtils;
 
@@ -86,6 +90,7 @@ import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.CommandException.Error;
 import com.android.internal.telephony.CommandsInterface;
 import com.android.internal.telephony.LastCallFailCause;
+import com.android.internal.telephony.gsm.SuppServiceNotification;
 import com.mediatek.ims.ext.OpImsServiceCustomizationUtils;
 import com.mediatek.ims.ril.ImsCommandsInterface;
 import com.mediatek.ims.ImsCallInfo;
@@ -105,8 +110,9 @@ import com.mediatek.ims.plugin.impl.ImsSelfActivatorBase;
 import com.mediatek.ims.plugin.impl.ImsCallPluginBase;
 import com.mediatek.ims.plugin.ImsSelfActivator;
 import com.mediatek.ims.plugin.ImsCallPlugin;
+import com.mediatek.ims.plugin.OemPluginFactory;
+import com.mediatek.ims.plugin.ImsCallOemPlugin;
 
-import com.mediatek.ims.common.ImsCarrierConfigConstants;
 import com.mediatek.ims.config.internal.ImsConfigUtils;
 
 import com.mediatek.wfo.DisconnectCause;
@@ -117,8 +123,11 @@ import com.mediatek.wfo.MwisConstants;
 
 // For operator add-on
 import com.mediatek.ims.ext.DigitsUtil;
-import com.mediatek.ims.internal.op.OpImsServiceFactoryBase;
-import com.mediatek.ims.internal.op.OpImsCallSessionProxy;
+import com.mediatek.ims.ril.OpImsCommandsInterface;
+import com.mediatek.ims.ext.OpImsServiceCustomizationFactoryBase;
+
+// For RTT carrier config
+import com.mediatek.ims.common.ImsCarrierConfigConstants;
 
 public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     private static final String LOG_TAG = "ImsCallSessionProxy";
@@ -150,6 +159,7 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     private int mPendingParticipantInfoIndex = 0;
     private int mPendingParticipantStatistics = 0;
     private boolean mIsHideHoldEventDuringMerging = false;
+    private boolean mNeedHideResumeEventDuringMerging = false;
     private String mMergeCallId = "";
     private ImsCallInfo.State mMergeCallStatus = ImsCallInfo.State.INVALID;
     private String mMergedCallId = "";
@@ -158,19 +168,23 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     private boolean mNormalCallsMerge = false;
     // at least one call is merged successfully
     private boolean mThreeWayMergeSucceeded = false;
+    private boolean mMerged = false;
     // count for +ECONF number in normal call merge normal call case
     private int mEconfCount = 0;
     private ImsCallSessionProxy mConfSessionProxy;
     private MtkImsCallSessionProxy mMtkConfSessionProxy;
-    private boolean mHaveUpdateConferenceWithMember = false;
-    private ArrayList<String> mSelfAddressList;
     private boolean mRadioUnavailable = false;
 
     private String mCallNumber;
+    private String mRetryRemoveUri = null;
+    /// M: for ALPS04742742. @{
+    private boolean mHangupHostDuringMerge = false;
+    /// @}
 
     // WFC
     private IWifiOffloadService mWfoService;
     private int mRatType = WifiOffloadManager.RAN_TYPE_MOBILE_3GPP;
+    private int mCallRat = IMS_CALL_TYPE_UNKNOWN;
     private static final int WFC_GET_CAUSE_FAILED = -1;
 
     // For ViLTE.
@@ -184,8 +198,8 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     private int mLastSipCode;
     private String mLastSIPReasonHeader;
 
-    /// M: ALPS02502328, cache the special terminate reason.
-    private int mTerminateReason = -1;
+    /// M: ALPS04419177, cache the local terminate reason.
+    private int mLocalTerminateReason = ImsReasonInfo.CODE_UNSPECIFIED;
 
     /// M: Enhance for force hangup.
     private int mHangupCount = 0;
@@ -215,12 +229,13 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
 
     private ImsReasonInfo mImsReasonInfo = null;
     private boolean mShouldUpdateAddressByPau = true;
+    private boolean mShouldUpdateAddressFromEcpi = false;
     private boolean mShouldUpdateAddressBySipField = true;
 
     public MtkImsCallSessionProxy mMtkImsCallSessionProxy;
 
+    private RttTextEncoder mRttTextEncoder = null;
     // For operator add-on
-    private OpImsCallSessionProxy mOpExt = null;
     private DigitsUtil mDigitsUtil = null;
     private com.mediatek.ims.ext.OpImsCallSessionProxy mOpImsCallSession = null;
 
@@ -249,9 +264,22 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     private boolean mIsEmergencyCall = false;
     private boolean mIsConferenceHost = false;
 
-    private AsyncResult mCachedUserInfo = null;
+    // For RTT
+    private boolean mIsRttEnabledForCallSession = false;
 
-    private boolean mWasVideoCallForRtt = false;
+    // For RTT BOM
+    private boolean mEnableSendRttBom = false;
+
+    private AsyncResult mCachedUserInfo = null;
+    private String mHeaderData = "";
+
+    private AsyncResult mCachedSuppServiceInfo = null;
+    private Object mLock = new Object();
+
+    //if received ECPI0 for MT
+    private boolean mMTSetup = false;
+    private ImsReasonInfo mCachedTerminateReasonInfo = null;
+    private static final int CACHED_TERMINATE_REASON_DELAY = 100;
 
     public static final int CALL_INFO_MSG_TYPE_SETUP = 0;
     public static final int CALL_INFO_MSG_TYPE_ALERT = 2;
@@ -268,8 +296,16 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     public static final String EXTRA_RAT_TYPE = "mediatek:ratType";
     public static final String EXTRA_INCOMING_CALL = "mediatek:incomingCall";
     public static final String EXTRA_EMERGENCY_CALL = "mediatek:emergencyCall";
+    public static final String EXTRA_WAS_VIDEO_CALL = "mediatek:wasVideoCall";
 
     private static final String TAG_DOUBLE_QUOTE = "<ascii_34>";
+
+    private int mImsCallMode = IMS_CALL_MODE_NORMAL;
+    private boolean mIsRingingRedirect = false;
+    private String mHeaderCallId;
+    private static final int HEADER_CALL_ID = 13;
+    private static final int IMS_CALL_MODE_NORMAL = 1;
+    private static final int IMS_CALL_MODE_CLIENT_API = 2;
 
     private static final int INVALID_CALL_MODE = 0xFF;
     private static final int IMS_VOICE_CALL = 20;
@@ -280,8 +316,10 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     private static final int IMS_VIDEO_CONF_PARTS = 25;
 
     // WFC
+    private static final int IMS_CALL_TYPE_UNKNOWN = 0;
     private static final int IMS_CALL_TYPE_LTE = 1;
     private static final int IMS_CALL_TYPE_WIFI = 2;
+    private static final int IMS_CALL_TYPE_NR = 3;
     // For UE initial USSI request or response network USSI
     private static final int USSI_REQUEST = 1;
     private static final int USSI_RESPONSE = 2;
@@ -295,9 +333,8 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     private static final int EVENT_CALL_MODE_CHANGE_INDICATION   = 106;
     private static final int EVENT_VIDEO_CAPABILITY_INDICATION   = 107;
     // For incoming USSI event
-    private static final int EVENT_ON_USSI                       = 108;
     private static final int EVENT_ECT_RESULT_INDICATION         = 109;
-    private static final int EVENT_GTT_CAPABILITY_INDICATION     = 110;
+    private static final int EVENT_RTT_CAPABILITY_INDICATION     = 110;
     private static final int EVENT_IMS_CONFERENCE_INDICATION     = 111;
 
     //***** Events Operation result
@@ -330,10 +367,22 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     private static final int EVENT_DEVICE_SWITCH_REPONSE         = 222;
 
     private static final int EVENT_SPEECH_CODEC_INFO             = 223;
-
     private static final int EVENT_REDIAL_ECC_INDICATION         = 224;
 
-    private static final int EVENT_AUDIO_INDICATION              = 225;
+    // RTT Audio
+    private static final int EVENT_RTT_AUDIO_INDICATION          = 225;
+
+    // IMS SS Notification
+    private static final int EVENT_ON_SUPP_SERVICE_NOTIFICATION  = 226;
+    // Client API
+    private static final int EVENT_SIP_HEADER_INFO               = 227;
+    // For 5G NR
+    private static final int EVENT_CALL_RAT_INDICATION           = 228;
+    // GWSD
+    private static final int EVENT_CALL_ADDITIONAL_INFO          = 229;
+
+    //for call terminate event
+    private static final int EVENT_CACHED_TERMINATE_REASON       = 230;
 
     private static final int QCELP13K = 1;
     private static final int EVRC = 2;
@@ -350,6 +399,18 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     private static final int EVS_SW = 25;
     private static final int EVS_FB = 32;
     private static final int EVS_AWB = 33;
+
+    // RTT Audio
+    // 0: audio, 1: silence
+    private static final int RTT_AUDIO_SPEECH = 0;
+
+    // GSWD
+    private static final int MT_CALL_IMS_GWSD = 101;
+    private static final int MT_CALL_ENRICHED_CALL = 102;
+
+    // Additioal call info sub type
+    public static final int SUB_TYPE_HEADER = 1;
+    public static final int SUB_TYPE_LOCATION = 2;
 
     // MD define
     // typedef  enum{
@@ -370,6 +431,11 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         public static final String EXTRA_MPTY = "mpty";
         public static final String EXTRA_INCOMING_MPTY = "incoming_mpty";
         public static final String EXTRA_VERSTAT = "verstat";
+        public static final String EXTRA_IMS_GWSD = "ims_gwsd";
+        public static final String EXTRA_IMPORTANCE = "mediatek:priority";
+        public static final String EXTRA_SUBJECT = "mediatek:subject";
+        public static final String EXTRA_PICTURE = "mediatek:call-info";
+        public static final String EXTRA_LOCATION = "mediatek:location";
     }
 
     private class ImsCallLogLevel {
@@ -381,6 +447,7 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     }
 
     private HashMap<String, Bundle> mParticipants = new HashMap<String, Bundle>();
+    private ArrayList<String> mParticipantsList = new ArrayList<String>();
     /**
     * This class is used to store IMS conference call user information.
     *
@@ -390,7 +457,7 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         public String mEndPoint;
         public String mEntity;
         public String mDisplayText;
-        public String mStatus = ImsConferenceState.STATUS_DISCONNECTED;  //Default is "disconnected"
+        public String mStatus = ImsConferenceState.STATUS_DISCONNECTED;  // Default is "disconnected"
     }
 
     private class VtProviderListener implements ImsVTProvider.VideoProviderStateListener {
@@ -416,7 +483,7 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
 
     private VtProviderListener mVtProviderListener = new VtProviderListener();
 
-    //Constructor for MT call
+    // Constructor for MT call
     ImsCallSessionProxy(Context context, ImsCallProfile profile,
                         ImsCallSessionListener listener, ImsService imsService,
                         Handler handler, ImsCommandsInterface imsRILAdapter,
@@ -425,19 +492,6 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
 
         this(context, profile, listener, imsService, handler, imsRILAdapter, callId, phoneId);
         mMtkImsCallSessionProxy = mtkImsCallSessionProxy;
-    }
-
-    // For netwrok initiated USSI, we don't need to setOnUSSI
-    ImsCallSessionProxy(Context context, ImsCallProfile profile,
-                        ImsCallSessionListener listener, ImsService imsService,
-                        Handler handler, ImsCommandsInterface imsRILAdapter,
-                        String callId, int phoneId, boolean nwInitUssi) {
-
-        this(context, profile, listener, imsService, handler, imsRILAdapter, callId, phoneId);
-        if (nwInitUssi) {
-            logWithCallId("ImsCallSessionProxy() : unSetOnUSSI", ImsCallLogLevel.DEBUG);
-            mImsRILAdapter.unSetOnUSSI(mHandler);
-        }
     }
 
     ImsCallSessionProxy(Context context, ImsCallProfile profile,
@@ -470,11 +524,12 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                     imsService + " callID:" + callId + " phoneId: " + phoneId, ImsCallLogLevel.DEBUG);
         }
 
+        mRttTextEncoder = new RttTextEncoder();
         // For operator add-on
-        mOpExt = OpImsServiceFactoryBase.getInstance().makeOpImsCallSessionProxy();
-        mDigitsUtil = OpImsServiceCustomizationUtils.getOpFactory(context).makeDigitsUtil();
-        mOpImsCallSession = OpImsServiceCustomizationUtils.getOpFactory(context)
-                .makeOpImsCallSessionProxy();
+        OpImsServiceCustomizationFactoryBase opImsServiceCustomizationFactory =
+                OpImsServiceCustomizationUtils.getOpFactory(context);
+        mDigitsUtil = opImsServiceCustomizationFactory.makeDigitsUtil();
+        mOpImsCallSession = opImsServiceCustomizationFactory.makeOpImsCallSessionProxy();
 
         mImsRILAdapter.registerForCallInfo(mHandler, EVENT_CALL_INFO_INDICATION, null);
         /// M: Register for updating conference call merged/added result.
@@ -490,52 +545,41 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         mImsRILAdapter.registerForNotAvailable(mHandler, EVENT_RADIO_NOT_AVAILABLE, null);
         mImsRILAdapter.registerForSpeechCodecInfo(mHandler, EVENT_SPEECH_CODEC_INFO, null);
         mImsRILAdapter.registerForImsRedialEccInd(mHandler, EVENT_REDIAL_ECC_INDICATION, null);
+        mImsRILAdapter.registerForSipHeaderInd(mHandler, EVENT_SIP_HEADER_INFO, null);
+        mImsRILAdapter.registerForCallRatIndication(mHandler, EVENT_CALL_RAT_INDICATION, null);
+        mImsRILAdapter.registerForCallAdditionalInfo(mHandler, EVENT_CALL_ADDITIONAL_INFO, null);
 
         mSelfActivateHelper = getImsExtSelfActivator(
             context, handler, this, imsRILAdapter, imsService, phoneId);
 
-        ///M: Register for RTT
-        mImsRILAdapter.getOpCommandsInterface().registerForGttCapabilityIndicator(mHandler,
-            EVENT_GTT_CAPABILITY_INDICATION, null);
-        mImsRILAdapter.getOpCommandsInterface().registerForRttModifyRequestReceive(mHandler,
-            EVENT_RTT_MODIFY_REQUEST_RECEIVE, null);
-        mImsRILAdapter.getOpCommandsInterface().registerForRttTextReceive(mHandler,
-            EVENT_RTT_TEXT_RECEIVE_INDICATION, null);
-        mImsRILAdapter.getOpCommandsInterface().registerForRttModifyResponse(mHandler,
-            EVENT_RTT_MODIFY_RESPONSE, null);
+        /// M: Register for RTT
+        mImsRILAdapter.registerForRttCapabilityIndicator(
+                mHandler, EVENT_RTT_CAPABILITY_INDICATION, null);
+        mImsRILAdapter.registerForRttModifyRequestReceive(
+                mHandler, EVENT_RTT_MODIFY_REQUEST_RECEIVE, null);
+        mImsRILAdapter.registerForRttTextReceive(mHandler, EVENT_RTT_TEXT_RECEIVE_INDICATION, null);
+        mImsRILAdapter.registerForRttModifyResponse(mHandler, EVENT_RTT_MODIFY_RESPONSE, null);
+        mImsRILAdapter.registerForRttAudioIndicator(mHandler, EVENT_RTT_AUDIO_INDICATION, null);
 
-        /// M: Register for audio indication of RTT
-        mImsRILAdapter.getOpCommandsInterface().registerForAudioIndication(
-                mHandler, EVENT_AUDIO_INDICATION, null);
 
         if (SystemProperties.get("persist.vendor.vilte_support").equals("1")) {
 
             logWithCallId("ImsCallSessionProxy() : start new VTProvider", ImsCallLogLevel.DEBUG);
 
             if (mCallId != null) {
-                //MT:new VT service
-                mVTProvider =
-                        OpImsServiceCustomizationUtils.getOpFactory(mContext).makeImsVtProvider();
+                // MT:new VT service
+                mVTProvider = opImsServiceCustomizationFactory.makeImsVtProvider();
                 mVTProviderUtil.bind(mVTProvider, Integer.parseInt(mCallId), mPhoneId);
             } else {
-                //MO:new VT service
-                mVTProvider =
-                        OpImsServiceCustomizationUtils.getOpFactory(mContext).makeImsVtProvider();
+                // MO:new VT service
+                mVTProvider = opImsServiceCustomizationFactory.makeImsVtProvider();
             }
             mVTProvider.addVideoProviderStateListener(mVtProviderListener);
 
             logWithCallId("ImsCallSessionProxy() : end new VTProvider", ImsCallLogLevel.DEBUG);
         }
-        if (mCallId == null) {
-            mIsIncomingCall = false;
-        }
-        /// M: Listen to incoming USSI event @{
-        if (mCallProfile.getCallExtraInt(ImsCallProfile.EXTRA_DIALSTRING,
-                ImsCallProfile.DIALSTRING_NORMAL) == ImsCallProfile.DIALSTRING_USSD) {
-            logWithCallId("ImsCallSessionProxy() : setOnUSSI", ImsCallLogLevel.DEBUG);
-            mImsRILAdapter.setOnUSSI(mHandler, EVENT_ON_USSI, null);
-        }
-        /// @}
+
+        mImsRILAdapter.setOnSuppServiceNotification(mHandler, EVENT_ON_SUPP_SERVICE_NOTIFICATION, null);
 
         // WFC: Registers the listener to WifiOffloadService for handover event and get rat type
         // from WifiOffloadService.
@@ -569,8 +613,12 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                 logWithCallId("ImsCallSessionProxy() : RemoteException ImsCallSessionProxy()", ImsCallLogLevel.ERROR);
             }
         }
-        updateRat(mImsService.getRatType(mPhoneId));
-        logWithCallId("ImsCallSessionProxy() : [WFC]mRatType is " + mRatType, ImsCallLogLevel.DEBUG);
+
+        if (mCallId == null) {
+            mIsIncomingCall = false;
+        }
+
+        updateRat(mImsService.getRatType(mPhoneId), IMS_CALL_TYPE_UNKNOWN);
 
         mConfSessionProxy = null;
         mMtkConfSessionProxy = null;
@@ -606,24 +654,23 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         mImsRILAdapter.unregisterForCallModeChangeIndicator(mHandler);
         mImsRILAdapter.unregisterForVideoCapabilityIndicator(mHandler);
         mImsRILAdapter.unregisterForEctResult(mHandler);
+        mImsRILAdapter.unregisterForImsConfInfoUpdate(mHandler);
 
         mImsRILAdapter.unregisterForNotAvailable(mHandler);
         mImsRILAdapter.unregisterForSpeechCodecInfo(mHandler);
         mImsRILAdapter.unregisterForImsRedialEccInd(mHandler);
+        mImsRILAdapter.unregisterForSipHeaderInd(mHandler);
+        mImsRILAdapter.unregisterForCallRatIndication(mHandler);
+        mImsRILAdapter.unregisterForCallAdditionalInfo(mHandler);
 
-        ///M: unregister for RTT
-        mImsRILAdapter.getOpCommandsInterface().unregisterForGttCapabilityIndicator(mHandler);
-        mImsRILAdapter.getOpCommandsInterface().unregisterForRttModifyResponse(mHandler);
-        mImsRILAdapter.getOpCommandsInterface().unregisterForRttTextReceive(mHandler);
-        mImsRILAdapter.getOpCommandsInterface().unregisterForRttModifyRequestReceive(mHandler);
+        /// M: unregister for RTT
+        mImsRILAdapter.unregisterForRttCapabilityIndicator(mHandler);
+        mImsRILAdapter.unregisterForRttModifyResponse(mHandler);
+        mImsRILAdapter.unregisterForRttTextReceive(mHandler);
+        mImsRILAdapter.unregisterForRttModifyRequestReceive(mHandler);
+        mImsRILAdapter.unregisterForRttAudioIndicator(mHandler);
 
-        /// M: unregister for audio indication of RTT
-        mImsRILAdapter.getOpCommandsInterface().unregisterForAudioIndication(mHandler);
-
-        /// M: Unregister listening incoming USSI event @{
-        mImsRILAdapter.unSetOnUSSI(mHandler);
-        /// @}
-        mImsRILAdapter.unregisterForImsConfInfoUpdate(mHandler);
+        mImsRILAdapter.unSetOnSuppServiceNotification(mHandler);
         mParticipants.clear();
 
         IImsVideoCallProvider vtProvider = getVideoCallProvider();
@@ -631,7 +678,7 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         if (vtProvider != null) {
             logWithCallId("close() : Start VtProvider setUIMode", ImsCallLogLevel.DEBUG);
 
-            mVTProviderUtil.setUIMode(mVTProvider, ImsVTProviderUtil.UI_MODE_DESTROY);
+            mVTProvider.onSetUIMode(ImsVTProviderUtil.UI_MODE_DESTROY);
             mVTProvider.removeVideoProviderStateListener(mVtProviderListener);
             mVTProvider = null;
         }
@@ -657,6 +704,8 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         mCallId = null;
         mListener = null;
         mCachedUserInfo = null;
+        mCachedSuppServiceInfo = null;
+        mCachedTerminateReasonInfo = null;
     }
 
     @Override
@@ -698,10 +747,51 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     public void setListener(ImsCallSessionListener listener) {
         mListener = listener;
 
-        if (mListener != null && mCachedUserInfo != null) {
-            logWithCallId("setListener and has unhandled ImsConference CEP", ImsCallLogLevel.DEBUG);
-            mHandler.obtainMessage(EVENT_IMS_CONFERENCE_INDICATION, mCachedUserInfo).sendToTarget();
-            mCachedUserInfo = null;
+        if (listener != null) {
+            // ALPS04340432: Incoming call disconnected before setListener.
+            // Should notify terminated again.
+            if (mIsOnTerminated) {
+                logWithCallId("setListener(), session terminated, notify terminated again.",
+                        ImsCallLogLevel.DEBUG);
+                //for AOSP ImsManager, the listener between ImsCall and ImsCallSession maybe not connect when takecall
+                //so delay to notify termination to make sure all listeners are ready.
+                synchronized (mLock) {
+                    if (mCachedTerminateReasonInfo != null) {
+                        Message msg = mHandler.obtainMessage(EVENT_CACHED_TERMINATE_REASON, mCachedTerminateReasonInfo);
+                        mHandler.sendMessageDelayed(msg, CACHED_TERMINATE_REASON_DELAY);
+                        mCachedTerminateReasonInfo = null;
+                    }
+                }
+            // ALPS04356019: CEP come earlier than merge complete.
+            } else if (mCachedUserInfo != null) {
+                logWithCallId("setListener(), has unhandled ImsConference CEP", ImsCallLogLevel.DEBUG);
+                if (!mHandler.hasMessages(EVENT_IMS_CONFERENCE_INDICATION)) {
+                    mHandler.obtainMessage(EVENT_IMS_CONFERENCE_INDICATION, mCachedUserInfo).sendToTarget();
+                }
+                mCachedUserInfo = null;
+            }
+
+            // Only for MT notifacation.
+            // 1. ImsCall set listener to ImsCallSession is later than ImsCallSesssion set listener
+            // to ImsCallSessionProxy, so need to send a short delayed message.
+            // 2. The connection in the telephony service is created later than ImsPhone's
+            // notifySuppSvcNotification, this requires us to send a long delayed messgage.
+            synchronized(mLock) {
+                if (mCachedSuppServiceInfo != null) {
+                    Message msg = mHandler.obtainMessage(EVENT_ON_SUPP_SERVICE_NOTIFICATION,
+                            mCachedSuppServiceInfo);
+                    mHandler.sendMessageDelayed(msg, 1000);
+                    mCachedSuppServiceInfo = null;
+                }
+            }
+        // mSession.setListener(null) won't get to here.
+        } else {
+            // 1A1H merge case, session terminated before set null listener, close self.
+            if (mIsOnTerminated) {
+                logWithCallId("setListener(), session terminated and no listener, close it.",
+                        ImsCallLogLevel.DEBUG);
+                close();
+            }
         }
     }
 
@@ -712,32 +802,33 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
 
     @Override
     public void start(String callee, ImsCallProfile profile) {
+
         if (isCallPull(profile)) {
             pullCall(callee, profile);
             mHasPendingMo = true;
             mCallNumber = callee;
-            updateShouldUpdateAddressByPau();
+            updateShouldUpdateAddress();
             return;
         }
 
+        // clean mtk call session proxy if not got yet
+        // it mean upper layger only use ASOP callsession
+        mImsService.cleanMtkCallSessionProxyIfNeed(this, false, mCallId, mPhoneId);
+
         int clirMode = profile.getCallExtraInt(ImsCallProfile.EXTRA_OIR, 0);
         mIsEmergencyCall = (profile.mServiceType == ImsCallProfile.SERVICE_TYPE_EMERGENCY);
-        boolean byEmergencyPdn = mIsEmergencyCall;
         int subId = mImsService.getSubIdUsingPhoneId(mPhoneId);
-
-        if (mIsEmergencyCall && getImsExtCallUtil().isSpecialEmergencyNumber(subId, callee)) {
-            byEmergencyPdn = false;
-        }
 
         if (!ImsCommonUtil.supportMdAutoSetupIms()) {
             // ALPS03435385, *82 is higher priority than CLIR invocation.
-            boolean isNAPriorityClirSupported = getBooleanFromCarrierConfig(ImsCarrierConfigConstants.
-                    MTK_KEY_CARRIER_NOURTH_AMERICA_HIGH_PRIORITY_CLIR_PREFIX_SUPPORTED);
+            boolean isNAPriorityClirSupported =
+                    OperatorUtils.isMatched(OperatorUtils.OPID.OP08, mPhoneId);
+            boolean ignoreClirWhenEcc = !OperatorUtils.isMatched(OperatorUtils.OPID.OP50, mPhoneId);
 
             if ((isNAPriorityClirSupported
                     && clirMode == CommandsInterface.CLIR_INVOCATION
                     && callee.startsWith(NA_PRIOR_CLIR_PREFIX))
-                    || mIsEmergencyCall) {
+                    || (mIsEmergencyCall && ignoreClirWhenEcc)) {
 
                 logWithCallId("start() : Prior CLIR supported, *82 or ECC is higher priority than CLIR invocation.", ImsCallLogLevel.DEBUG);
 
@@ -747,8 +838,8 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
 
         if (mIsEmergencyCall) {
             // IMS ECC not supported, hangup all holding / active call to make it possible to CSFB
-            // ALPS04680554 Should only check the value from +CNEMS1.
-            if (!mImsService.isImsEccSupportedWhenNormalService(mPhoneId)) {
+            if (!mImsService.isImsEccSupportedWhenNormalService(mPhoneId) ||
+                    getImsOemCallUtil().needHangupOtherCallWhenEccDialing()) {
                 logWithCallId("start() : Hangup all if IMS Ecc not supported", ImsCallLogLevel.DEBUG);
                 mImsRILAdapter.hangupAllCall(null);
             }
@@ -781,30 +872,35 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
             if (mDigitsUtil.hasDialFrom(profile)) {
                 mDigitsUtil.sendUssiFrom(mImsRILAdapter, profile, USSI_REQUEST, callee, msg);
             } else {
-                mImsRILAdapter.sendUSSI(USSI_REQUEST, callee, msg);
+                mImsRILAdapter.sendUSSI(callee, msg);
             }
             return;
         }
         /// @}
 
         /// M: E911 during VoLTE off @{
-        tryTurnOnVolteForE911(byEmergencyPdn);
+        tryTurnOnVolteForE911(mIsEmergencyCall);
         /// @}
 
         //M: for RTT, set RTT mode for Dial
-        mOpExt.setRttModeForDial(mCallId, mImsRILAdapter, profile.mMediaProfile.isRttCall());
+        setRttModeForDial(profile.mMediaProfile.isRttCall());
+
         if (mDigitsUtil.hasDialFrom(profile)) {
             Message response = mHandler.obtainMessage(EVENT_DIAL_FROM_RESULT);
             mDigitsUtil.startFrom(callee, profile, clirMode, isVideoCall(profile),
                     mImsRILAdapter, response);
         } else {
             Message response = mHandler.obtainMessage(EVENT_DIAL_RESULT);
-            mImsRILAdapter.start(callee, clirMode, byEmergencyPdn, isVideoCall(profile),
-                    mPhoneId, response);
+            boolean useEmergencyDial = mIsEmergencyCall;
+            if (getImsOemCallUtil().useNormalDialForEmergencyCall()) {
+                useEmergencyDial = false;
+            }
+            mImsRILAdapter.start(callee, profile, clirMode, useEmergencyDial, isVideoCall(profile),
+                    response);
         }
         mHasPendingMo = true;
         mCallNumber = callee;
-        updateShouldUpdateAddressByPau();
+        updateShouldUpdateAddress();
     }
 
     @Override
@@ -819,42 +915,36 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         mHasPendingMo = true;
         mIsOneKeyConf = true;
         mOneKeyparticipants = participants;
-        updateShouldUpdateAddressByPau();
+        updateShouldUpdateAddress();
     }
 
     @Override
     public void accept(int callType, ImsStreamMediaProfile profile) {
-        logWithCallId("accept() : original call Type:" + mCallProfile.mCallType
-                + "accept as:" + callType, ImsCallLogLevel.DEBUG);
+
+        logWithCallId("accept() : original call Type: " + mCallProfile.mCallType
+                + ", accept as: " + callType, ImsCallLogLevel.DEBUG);
+
+        // clean mtk call session proxy if not got yet
+        // it mean upper layger only use ASOP callsession
+        mImsService.cleanMtkCallSessionProxyIfNeed(this, true, mCallId, mPhoneId);
 
         /// M: For network initiated USSI @{
         if (mCallProfile.getCallExtraInt(ImsCallProfile.EXTRA_DIALSTRING,
             ImsCallProfile.DIALSTRING_NORMAL) == ImsCallProfile.DIALSTRING_USSD) {
             String m = mCallProfile.getCallExtra("m");
-            String n = mCallProfile.getCallExtra("n");
             String str = mCallProfile.getCallExtra("str");
 
-            logWithCallId("accept() : " + m + "," + n + "," + str, ImsCallLogLevel.DEBUG);
-
-            int ussiClass = Integer.parseInt(m);
-            int ussiStatus = Integer.parseInt(n);
-            int mode = -1;
-
-            if (ussiClass == 1) {
-                if (ussiStatus == 0 || ussiStatus == 2) {
-                    mode = ImsCall.USSD_MODE_NOTIFY;
-                }
-                if (ussiStatus == 1) {
-                    mode = ImsCall.USSD_MODE_REQUEST;
-                }
-            } else if (ussiClass == 3) {
-                if (ussiStatus == 0) {
-                    mode = ImsCall.USSD_MODE_NOTIFY;
-                }
-            }
+            logWithCallId("accept() : m = " + m + ", str = " + str, ImsCallLogLevel.DEBUG);
 
             if (mListener != null) {
-                mListener.callSessionUssdMessageReceived(mode, str);
+                mListener.callSessionUssdMessageReceived(Integer.parseInt(m), str);
+                // Mode 1 is USSR, we should not terminate it.
+                if (!m.equals(String.valueOf(ImsCall.USSD_MODE_REQUEST))) {
+                    if (mListener != null) {
+                        logWithCallId("callSessionTerminated !", ImsCallLogLevel.DEBUG);
+                        mListener.callSessionTerminated(new ImsReasonInfo());
+                    }
+                }
             }
             return;
         }
@@ -896,6 +986,9 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     public void reject(int reason) {
         if (mCallId != null) {
             int cause = getHangupCause(reason);
+
+            /// M: ALPS04419177, cache the terminate reason.
+            mLocalTerminateReason = reason;
 
             if (cause <= HANGUP_CAUSE_NONE) {
                 mImsRILAdapter.reject(Integer.parseInt(mCallId));
@@ -943,8 +1036,8 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                 }
             }
             /// @}
-            /// M: ALPS02502328, cache the terminate reason.
-            mTerminateReason = reason;
+            /// M: ALPS04419177, cache the terminate reason.
+            mLocalTerminateReason = reason;
             ++mHangupCount;
             mState = ImsCallSession.State.TERMINATING;
         } else {
@@ -976,11 +1069,20 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         ImsCallInfo myCallInfo = mImsServiceCT.getCallInfo(mCallId);
         ImsCallInfo beMergedCallInfo = null;
 
-        boolean needSwapConfToFg = getBooleanFromCarrierConfig(
-                ImsCarrierConfigConstants.MTK_KEY_CARRIER_SWAP_CONFERENCE_TO_FOREGROUND_BEFORE_MERGE);
+        boolean needSwapConfToFg = (
+                OperatorUtils.isMatched(OperatorUtils.OPID.OP165, mPhoneId) ||
+                OperatorUtils.isMatched(OperatorUtils.OPID.OP152, mPhoneId) ||
+                OperatorUtils.isMatched(OperatorUtils.OPID.OP117, mPhoneId) ||
+                OperatorUtils.isMatched(OperatorUtils.OPID.OP131, mPhoneId) ||
+                OperatorUtils.isMatched(OperatorUtils.OPID.OP125, mPhoneId) ||
+				OperatorUtils.isMatched(OperatorUtils.OPID.OP18, mPhoneId)
+                );
 
-        boolean needSwapVtConfToFg = getBooleanFromCarrierConfig(
-                ImsCarrierConfigConstants.MTK_KEY_CARRIER_SWAP_VT_CONFERENCE_TO_FOREGROUND_BEFORE_MERGE);
+        boolean needSwapVtConfToFg = (
+                OperatorUtils.isMatched(OperatorUtils.OPID.OP16, mPhoneId) ||
+                OperatorUtils.isMatched(OperatorUtils.OPID.OP18, mPhoneId) ||
+                OperatorUtils.isMatched(OperatorUtils.OPID.OP147, mPhoneId)
+                );
 
         if (myCallInfo == null) {
             logWithCallId("merge() : can't find this call callInfo", ImsCallLogLevel.ERROR);
@@ -1018,22 +1120,20 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         DefaultConferenceHandler confHdler = ImsConferenceHandler.getInstance();
 
         if (myCallInfo.mIsConferenceHost == false && beMergedCallInfo.mIsConferenceHost == false) {
-            //Case 1: Normal call merge normal call
+            // Case 1: Normal call merge normal call
             result = mHandler.obtainMessage(EVENT_MERGE_RESULT);
             mImsRILAdapter.merge(result);
             mIsHideHoldEventDuringMerging = true;
             mNormalCallsMerge = true;
             // keep the conf numbers
-            confHdler.firstMerge(myCallInfo.mCallNum, beMergedCallInfo.mCallNum);
+            confHdler.firstMerge(myCallInfo.mCallId, beMergedCallInfo.mCallId,
+                    myCallInfo.mCallNum, beMergedCallInfo.mCallNum);
         } else if (myCallInfo.mIsConferenceHost == true && beMergedCallInfo.mIsConferenceHost == true) {
             // Case 2: conference call merge conference call
             logWithCallId("merge() : conference call merge conference call", ImsCallLogLevel.DEBUG);
             result = mHandler.obtainMessage(EVENT_ADD_CONFERENCE_RESULT);
-            mImsRILAdapter.inviteParticipant(
-                    Integer.parseInt(mCallId),
-                    beMergedCallInfo.mCallNum,
-                    Integer.parseInt(beMergedCallInfo.mCallId),
-                    result);
+            mImsRILAdapter.inviteParticipantsByCallId(Integer.parseInt(mCallId),
+                    beMergedCallInfo, result);
             return;
         } else {
             // Keep the adding conf number
@@ -1044,40 +1144,30 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                 if (myCallInfo.mIsConferenceHost) {
                     logWithCallId("merge() : active conference call merge background normal call", ImsCallLogLevel.DEBUG);
                     result = mHandler.obtainMessage(EVENT_ADD_CONFERENCE_RESULT);
-                    mImsRILAdapter.inviteParticipant(
-                            Integer.parseInt(mCallId),
-                            beMergedCallInfo.mCallNum,
-                            Integer.parseInt(beMergedCallInfo.mCallId),
-                            result);
+                    mImsRILAdapter.inviteParticipantsByCallId(Integer.parseInt(mCallId),
+                            beMergedCallInfo, result);
                 } else {
                     logWithCallId("merge() : active normal call merge background conference call", ImsCallLogLevel.DEBUG);
                     result = mHandler.obtainMessage(EVENT_ADD_CONFERENCE_RESULT);
-                    mImsRILAdapter.inviteParticipant(
-                            Integer.parseInt(beMergedCallInfo.mCallId),
-                            myCallInfo.mCallNum,
-                            Integer.parseInt(myCallInfo.mCallId),
-                            result);
+                    mImsRILAdapter.inviteParticipantsByCallId(
+                                    Integer.parseInt(beMergedCallInfo.mCallId),
+                                    myCallInfo, result);
                 }
             } else {
                 // OP16 workaround
                 if (myCallInfo.mIsConferenceHost && myCallInfo.mState == ImsCallInfo.State.ACTIVE) {
                     logWithCallId("merge() : active conference call merge background normal call", ImsCallLogLevel.DEBUG);
                     result = mHandler.obtainMessage(EVENT_ADD_CONFERENCE_RESULT);
-                    mImsRILAdapter.inviteParticipant(
-                            Integer.parseInt(mCallId),
-                            beMergedCallInfo.mCallNum,
-                            Integer.parseInt(beMergedCallInfo.mCallId),
-                            result);
+                    mImsRILAdapter.inviteParticipantsByCallId(Integer.parseInt(mCallId),
+                            beMergedCallInfo, result);
                 } else if (beMergedCallInfo.mIsConferenceHost &&
-                       beMergedCallInfo.mState == ImsCallInfo.State.ACTIVE) {
-                    // beMerged is conference call and merge background normal call
+                        beMergedCallInfo.mState == ImsCallInfo.State.ACTIVE) {
+                    // bemerged is conference call and merge background normal call
                     logWithCallId("merge() : beMergedCall in foreground merge bg normal call", ImsCallLogLevel.DEBUG);
                     result = mHandler.obtainMessage(EVENT_ADD_CONFERENCE_RESULT);
-                    mImsRILAdapter.inviteParticipant(
-                            Integer.parseInt(beMergedCallInfo.mCallId),
-                            myCallInfo.mCallNum,
-                            Integer.parseInt(myCallInfo.mCallId),
-                            result);
+                    mImsRILAdapter.inviteParticipantsByCallId(
+                                    Integer.parseInt(beMergedCallInfo.mCallId),
+                                    myCallInfo, result);
                 } else {
                     logWithCallId("merge() : swapping before merge", ImsCallLogLevel.DEBUG);
                     result = mHandler.obtainMessage(EVENT_SWAP_BEFORE_MERGE_RESULT);
@@ -1130,9 +1220,11 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         mPendingParticipantInfoIndex = 0;
         mPendingParticipantInfo = participants;
         mPendingParticipantStatistics = participants.length;
-        if (mCallId != null || mPendingParticipantStatistics == 0) {
-            mImsRILAdapter.inviteParticipant(Integer.parseInt(mCallId),
-                    mPendingParticipantInfo[mPendingParticipantInfoIndex], -1, result);
+        if (mCallId != null && mPendingParticipantStatistics != 0) {
+            ImsConferenceHandler.getInstance().tryAddParticipant(
+                    mPendingParticipantInfo[mPendingParticipantInfoIndex]);
+            mImsRILAdapter.inviteParticipants(Integer.parseInt(mCallId),
+                    mPendingParticipantInfo[mPendingParticipantInfoIndex], result);
         } else {
             logWithCallId("inviteParticipants() : fail since no call ID or participants is null" +
                     " CallID=" + mCallId + " Participant number=" + mPendingParticipantStatistics, ImsCallLogLevel.ERROR);
@@ -1153,14 +1245,14 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         mPendingParticipantInfoIndex = 0;
         mPendingParticipantInfo = participants;
         mPendingParticipantStatistics = participants.length;
-        if (mCallId != null || mPendingParticipantStatistics == 0) {
+        if (mCallId != null && mPendingParticipantStatistics != 0) {
             String addr = mPendingParticipantInfo[mPendingParticipantInfoIndex];
             String participantUri = getConfParticipantUri(addr);
-            mImsRILAdapter.removeParticipant(Integer.parseInt(mCallId), participantUri, result);
+            mImsRILAdapter.removeParticipants(Integer.parseInt(mCallId), participantUri, result);
 
             ImsConferenceHandler.getInstance().tryRemoveParticipant(addr);
         } else {
-            logWithCallId("removeParticipant() : fail since no call ID or participants is null" +
+            logWithCallId("removeParticipants() : fail since no call ID or participants is null" +
                     " CallID=" + mCallId + " Participant number=" + mPendingParticipantStatistics, ImsCallLogLevel.ERROR);
 
             if (mListener != null) {
@@ -1175,7 +1267,9 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
 
     @Override
     public void sendDtmf(char c, Message result) {
-        mImsRILAdapter.sendDtmf(c, result);
+        mDtmfMsg = result;
+        Message local_result = mHandler.obtainMessage(EVENT_DTMF_DONE);
+        mImsRILAdapter.sendDtmf(c, local_result);
     }
 
     @Override
@@ -1188,28 +1282,14 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         mImsRILAdapter.stopDtmf(null);
     }
 
-
-    // Google issue. Original sendDtmf could not pass Message.target to another process,
-    // because Message.writeToParcel didn't write target. Workaround this issue by adding
-    // a new API which passes target by Messenger.
-    void sendDtmfbyTarget(char c, Message result, Messenger target) {
-        mDtmfMsg = result;
-        mDtmfTarget = target;
-        // Use ImsCallSessionProxy handler to send result back to original Message target.
-        Message local_result = mHandler.obtainMessage(EVENT_DTMF_DONE);
-        mImsRILAdapter.sendDtmf(c, local_result);
-    }
-
     @Override
     public void sendUssd(String ussdMessage) {
-        /// M: Send USSI request to RIL @{
-        Message msg = mHandler.obtainMessage(EVENT_SEND_USSI_COMPLETE, USSI_RESPONSE, 0);
+        Message msg = mHandler.obtainMessage(EVENT_SEND_USSI_COMPLETE, USSI_REQUEST, 0);
         if (mDigitsUtil.hasDialFrom(mCallProfile)) {
             mDigitsUtil.sendUssiFrom(mImsRILAdapter, mCallProfile, USSI_REQUEST, ussdMessage, msg);
         } else {
-            mImsRILAdapter.sendUSSI(USSI_RESPONSE, ussdMessage, msg);
+            mImsRILAdapter.sendUSSI(ussdMessage, msg);
         }
-        /// @}
     }
 
     @Override
@@ -1231,20 +1311,140 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         return mCallProfile.getCallExtraInt(ImsCallProfileEx.EXTRA_INCOMING_MPTY, 0) == 1;
     }
 
-    @Override
-    public void sendRttMessage(String rttMessage) {
-        mOpExt.sendRttMessage(mCallId, mImsRILAdapter, rttMessage);
+    public void approveEccRedial(boolean isAprroved) {
+        int approve = isAprroved ? 1 /* approve */: 0 /* disapprove */;
+        mImsRILAdapter.approveEccRedial(approve, Integer.parseInt(mCallId), null);
     }
 
+    private static String HEX = "0123456789ABCDEF";
+    private static String toHex(int n) {
+        StringBuilder b = new StringBuilder();
+        if (n < 0) n += 256;
+        b.append(HEX.charAt(n >> 4));
+        b.append(HEX.charAt(n & 0x0F));
+        return b.toString();
+    }
+
+    /**
+     * Send RTT message
+     * @param rttMessage RTT message
+     */
+    @Override
+    public void sendRttMessage(String rttMessage) {
+        if (!isRttSupported()) {
+            return;
+        }
+        int callId = Integer.parseInt(mCallId);
+
+        if (rttMessage == null) return;
+
+        // trascode Unicode string to UTF8 byte array
+        int length = rttMessage.length();
+        String encodeText = null;
+        int utf8_len = 0;
+        try {
+           byte[] bytes_utf8 = rttMessage.getBytes("utf-8");
+           if (bytes_utf8 != null ) utf8_len = bytes_utf8.length;
+           StringBuilder sbuild = new StringBuilder();
+           for (int i = 0; i < bytes_utf8.length; i++) {
+               Byte b = new Byte(bytes_utf8[i]);
+               int ch = b.intValue();
+               String bb = toHex(ch);
+               sbuild.append(bb);
+           }
+           encodeText = sbuild.toString();
+           logWithCallId("sendRttMessage rttMessage= " + sensitiveEncode(rttMessage)
+                   + " len ="+ sensitiveEncode(String.valueOf(length))
+                   + " = " + sensitiveEncode(encodeText)
+                   + " encodeText.length= "+ sensitiveEncode(String.valueOf(bytes_utf8.length)),
+                   ImsCallLogLevel.DEBUG);
+        } catch (java.io.UnsupportedEncodingException e) {
+           e.printStackTrace();
+           return;
+        }
+        if (encodeText != null && utf8_len > 0) {
+            mImsRILAdapter.sendRttText(callId, encodeText, utf8_len, null);
+        }
+    }
+
+    /**
+     * Send RTT modify request
+     * @param to requested call profile
+     */
     @Override
     public void sendRttModifyRequest(ImsCallProfile to) {
         logWithCallId("sendRttModifyRequest() : to = " + to, ImsCallLogLevel.DEBUG);
-        mOpExt.sendRttModifyRequest(mCallId, mImsRILAdapter, to);
+        if (!isRttSupported()) {
+            return;
+        }
+
+        int callId = Integer.parseInt(mCallId);
+        if (to == null) {
+            logWithCallId("sendRttModifyRequest invalid ImsCallProfile"
+                    , ImsCallLogLevel.ERROR);
+            return;
+        }
+        if (to.mMediaProfile.isRttCall() == true) {
+            logWithCallId("sendRttModifyRequest upgrade mCallId= " + mCallId
+                    , ImsCallLogLevel.DEBUG);
+            mImsRILAdapter.sendRttModifyRequest(callId, 1, null);
+            mEnableSendRttBom = true;
+        } else {
+            logWithCallId("sendRttModifyRequest downgrade mCallId= " + mCallId
+                    , ImsCallLogLevel.DEBUG);
+            mImsRILAdapter.sendRttModifyRequest(callId, 0, null);
+        }
     }
 
+    /**
+     * Send RTT modify response
+     * @param response should always be true to accept the RTT modify request.
+     */
     @Override
     public void sendRttModifyResponse(boolean response) {
-        mOpExt.sendRttModifyResponse(mCallId, mImsRILAdapter, response);
+        if (!isRttSupported()) {
+            return;
+        }
+        int callId = Integer.parseInt(mCallId);
+        logWithCallId("sendRttModifyResponse = " + response
+                , ImsCallLogLevel.DEBUG);
+        int intResponse = response ? 0 /* accept */: 1 /* reject */;
+        mImsRILAdapter.setRttModifyRequestResponse(callId, intResponse, null);
+        if (response) {
+            mEnableSendRttBom = true;
+        }
+    }
+
+    private boolean isRttSupported() {
+        TelephonyManager tm = mContext.getSystemService(TelephonyManager.class);
+        return tm.isRttSupported();
+    }
+
+    /**
+     * Set RTT mode for dial
+     * @param isRtt Is RTT
+     */
+    private void setRttModeForDial(boolean isRtt) {
+        logWithCallId("setRttModeForDial + isRtt: " + isRtt + " mCallId = " + mCallId
+                , ImsCallLogLevel.DEBUG);
+
+        if (!isRttSupported()) {
+            return;
+        }
+
+        /// AT+EIMSRTT = <op>
+        /// 0 : not a RTT call (RTT off)
+        /// 1 : RTT call  (RTT auto)
+        /// 2: enable IMS RTT capability with Upon Request RTT Operation Mode (upon request)
+        /// Description: indicate RTT call type of the following ATD command
+        if (isRtt) {
+            logWithCallId("setRttModeForDial setRttMode 1", ImsCallLogLevel.DEBUG);
+            mImsRILAdapter.setRttMode(1, null);
+            mEnableSendRttBom = true;
+        } else {
+            logWithCallId("setRttModeForDial setRttMode 2", ImsCallLogLevel.DEBUG);
+            mImsRILAdapter.setRttMode(2, null);
+        }
     }
 
     public void callTerminated() {
@@ -1328,7 +1528,11 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
             int startIndex = pau.indexOf(field);
             startIndex += field.length();
             int endIndex = pau.indexOf(PAU_END_FLAG_FIELD, startIndex);
-            value = pau.substring(startIndex, endIndex);
+            if (endIndex < 0) {
+                value = pau.substring(startIndex);
+            } else {
+                value = pau.substring(startIndex, endIndex);
+            }
             return value;
         }
 
@@ -1347,8 +1551,8 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                     return ImsReasonInfo.CODE_SIP_NOT_ACCEPTABLE;
 
                 case CallFailCause.NO_CIRCUIT_AVAIL:
-                case MtkCallFailCause.FACILITY_NOT_IMPLEMENT:
-                case MtkCallFailCause.PROTOCOL_ERROR_UNSPECIFIED:
+                case CallFailCause.REQUESTED_FACILITY_NOT_IMPLEMENTED:
+                case CallFailCause.PROTOCOL_ERROR_UNSPECIFIED:
                     return ImsReasonInfo.CODE_SIP_SERVER_INTERNAL_ERROR;
 
                 case CallFailCause.ACM_LIMIT_EXCEEDED:
@@ -1356,6 +1560,8 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
 
                 case CallFailCause.CALL_BARRED:
                     return ImsReasonInfo.CODE_LOCAL_ILLEGAL_STATE;
+                case CallFailCause.ACCESS_CLASS_BLOCKED:
+                    return ImsReasonInfo.CODE_ACCESS_CLASS_BLOCKED;
                 case CallFailCause.FDN_BLOCKED:
                     return ImsReasonInfo.CODE_FDN_BLOCKED;
 
@@ -1373,59 +1579,59 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
 
                     // return CODE_SIP_SERVER_ERROR by default.
                     return ImsReasonInfo.CODE_SIP_SERVER_ERROR;
-                case MtkCallFailCause.INTERWORKING_UNSPECIFIED:
+                case CallFailCause.INTERWORKING_UNSPECIFIED:
                 /* sip 510 not implemented */
-                case MtkCallFailCause.FACILITY_REJECTED:
+                case CallFailCause.FACILITY_REJECTED:
                 /* sip 502 bad gateway */
-                case MtkCallFailCause.ACCESS_INFORMATION_DISCARDED:
+                case CallFailCause.ACCESS_INFORMATION_DISCARDED:
                     return ImsReasonInfo.CODE_SIP_SERVER_ERROR;
 
-                case MtkCallFailCause.NO_USER_RESPONDING:
+                case CallFailCause.NO_USER_RESPONDING:
                     return ImsReasonInfo.CODE_TIMEOUT_NO_ANSWER;
 
-                case MtkCallFailCause.USER_ALERTING_NO_ANSWER:
+                case CallFailCause.USER_ALERTING_NO_ANSWER:
                     return ImsReasonInfo.CODE_USER_NOANSWER;
 
-                case MtkCallFailCause.CALL_REJECTED:
+                case CallFailCause.CALL_REJECTED:
                     return ImsReasonInfo.CODE_SIP_USER_REJECTED;
 
                 case CallFailCause.NORMAL_UNSPECIFIED:
                     return ImsReasonInfo.CODE_USER_TERMINATED_BY_REMOTE;
 
                 case CallFailCause.UNOBTAINABLE_NUMBER:
-                case MtkCallFailCause.INVALID_NUMBER_FORMAT:
+                case CallFailCause.INVALID_NUMBER_FORMAT:
                     return ImsReasonInfo.CODE_SIP_BAD_ADDRESS;
 
-                case MtkCallFailCause.RESOURCE_UNAVAILABLE:
+                case CallFailCause.RESOURCES_UNAVAILABLE_UNSPECIFIED:
                 case CallFailCause.SWITCHING_CONGESTION:
-                case MtkCallFailCause.SERVICE_NOT_AVAILABLE:
-                case MtkCallFailCause.NETWORK_OUT_OF_ORDER:
-                case MtkCallFailCause.INCOMPATIBLE_DESTINATION:
+                case CallFailCause.SERVICE_OR_OPTION_NOT_AVAILABLE:
+                case CallFailCause.NETWORK_OUT_OF_ORDER:
+                case CallFailCause.INCOMPATIBLE_DESTINATION:
                     return ImsReasonInfo.CODE_SIP_SERVICE_UNAVAILABLE;
 
-                case MtkCallFailCause.BEARER_NOT_AUTHORIZED:
-                case MtkCallFailCause.INCOMING_CALL_BARRED_WITHIN_CUG:
+                case CallFailCause.BEARER_CAPABILITY_NOT_AUTHORISED:
+                case CallFailCause.INCOMING_CALL_BARRED_WITHIN_CUG:
                     return ImsReasonInfo.CODE_SIP_FORBIDDEN;
 
-                case MtkCallFailCause.CHANNEL_UNACCEPTABLE:
-                case MtkCallFailCause.BEARER_NOT_IMPLEMENT:
+                case CallFailCause.CHANNEL_UNACCEPTABLE:
+                case CallFailCause.BEARER_SERVICE_NOT_IMPLEMENTED:
                     return ImsReasonInfo.CODE_SIP_NOT_ACCEPTABLE;
 
-                case MtkCallFailCause.NO_ROUTE_TO_DESTINATION:
+                case CallFailCause.NO_ROUTE_TO_DEST:
                     return ImsReasonInfo.CODE_SIP_NOT_FOUND;
 
                 case CallFailCause.OPERATOR_DETERMINED_BARRING:
                     return ImsReasonInfo.CODE_SIP_REQUEST_CANCELLED;
 
-                case MtkCallFailCause.RECOVERY_ON_TIMER_EXPIRY:
+                case CallFailCause.RECOVERY_ON_TIMER_EXPIRY:
                     return ImsReasonInfo.CODE_SIP_REQUEST_TIMEOUT;
 
                 /* SIP 481: call/transaction doesn't exist */
-                case MtkCallFailCause.INVALID_TRANSACTION_ID_VALUE:
+                case CallFailCause.INVALID_TRANSACTION_ID_VALUE:
                     return ImsReasonInfo.CODE_SIP_CLIENT_ERROR;
 
                 /* [VoLTE]Normal call failed, need to dial as ECC */
-                case MtkCallFailCause.IMS_EMERGENCY_REREG:
+                case MtkCallFailCause.IMS_EMERGENCY_REDIAL:
                     return MtkImsReasonInfo.CODE_SIP_REDIRECTED_EMERGENCY;
 
                 case CallFailCause.ERROR_UNSPECIFIED:
@@ -1464,8 +1670,8 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                     || mCallId == null || sipMessage[0].equals(mCallId) == false) {
                 return;
             }
-            logWithCallId("updateImsReasonInfo() : receive sip method = " + sipMessage[3]
-                    + " cause = " + sipMessage[4] + " reason header = " + sipMessage[5], ImsCallLogLevel.DEBUG);
+            detailLog("updateImsReasonInfo() : receive sip method = " + sipMessage[3]
+                    + " cause = " + sipMessage[4] + " reason header = " + sipMessage[5]);
 
             SipMessage msg = new SipMessage(sipMessage);
 
@@ -1586,6 +1792,14 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                         mSipSessionProgress = true;
                     }
                     break;
+                // 486 Busy
+                case SipMessage.CODE_SESSION_INVITE_FAILED_REMOTE_BUSY:
+                    if (msg.getMethod() == SipMessage.METHOD_INVITE) {
+                        mImsReasonInfo = new ImsReasonInfo(
+                                ImsReasonInfo.CODE_SIP_BUSY, 0, msg.getReasonHeader());
+                        mMtkImsCallSessionProxy.notifyCallSessionBusy();
+                    }
+                    break;
                 default:
                     break;
             }
@@ -1643,14 +1857,17 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                 }
             }
 
-            // Currently only RJIL and TMO support video conference.
-            // Voice conference will always upgrade failed so take away the upgrade capability.
-            if (callMode == IMS_VOICE_CONF || callMode == IMS_VOICE_CONF_PARTS) {
+            // For AT&T support voice conference upgrade to video conference
+            boolean supportUpgradeWhenVoiceConf =
+                    OperatorUtils.isMatched(OperatorUtils.OPID.OP07, mPhoneId);
+
+            if ((callMode == IMS_VOICE_CONF || callMode == IMS_VOICE_CONF_PARTS) &&
+                    !supportUpgradeWhenVoiceConf) {
                 isChanged |= removeRemoteCallVideoCapability();
             }
 
             if (callMode == IMS_VOICE_CALL || callMode == IMS_VOICE_CONF ||
-                    callMode == IMS_VOICE_CONF_PARTS) {
+                    callMode == IMS_VOICE_CONF_PARTS || callMode == IMS_VIDEO_CONF_PARTS) {
                 if (isChanged && (mVTProvider != null)) {
                     logWithCallId("isCallModeUpdated() : Start setUIMode old: " + oldCallMode, ImsCallLogLevel.DEBUG);
                     mVTProviderUtil.setUIMode(mVTProvider, ImsVTProviderUtil.UI_MODE_RESET);
@@ -1686,7 +1903,7 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
 
                 if (mergeCallInfo.mState == ImsCallInfo.State.ACTIVE &&
                         mergedCallInfo.mState == ImsCallInfo.State.HOLDING) {
-                    //Nothing Change
+                    // Nothing Change
                     isNotifyMergeFail = true;
 
                 } else if (mergeCallInfo.mState == ImsCallInfo.State.ACTIVE &&
@@ -1707,17 +1924,12 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                     Message result = mHandler.obtainMessage(EVENT_RETRIEVE_MERGE_FAIL_RESULT);
                     mImsRILAdapter.resume(Integer.parseInt(mMergeCallId), result);
                 } else {
-                    /*
-                     *Sincemerge call is become hold and merged call is become active,
-                     *we need to swap two calls
-                     */
-                    logWithCallId("retrieveMergeFail() : swap two calls", ImsCallLogLevel.DEBUG);
-                    Message result = mHandler.obtainMessage(EVENT_RETRIEVE_MERGE_FAIL_RESULT);
-                    mImsRILAdapter.swap(result);
+                    // Nothing Change
+                    isNotifyMergeFail = true;
                 }
             } else if (mergeCallInfo == null || mergedCallInfo == null) {
 
-                //Only one call is exist and maintain the call state to original state
+                // Only one call is exist and maintain the call state to original state
                 if (mergeCallInfo != null) {
 
                     logWithCallId("retrieveMergeFail() : only merge call is left", ImsCallLogLevel.DEBUG);
@@ -1844,6 +2056,12 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                                     imsCallProfile.setCallExtraInt(ImsCallProfile.EXTRA_OIR,
                                             ImsCallProfile.OIR_PRESENTATION_NOT_RESTRICTED);
                                 }
+
+                                String radioTech = mCallProfile.getCallExtra(
+                                        ImsCallProfile.EXTRA_CALL_RAT_TYPE);
+                                imsCallProfile.setCallExtra(ImsCallProfile.EXTRA_CALL_RAT_TYPE,
+                                        radioTech);
+
                                 createConferenceSession(imsCallProfile, callInfo[0]);
 
                                 if (mMtkConfSessionProxy != null) {
@@ -1854,13 +2072,40 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                                     logWithCallId("handleMessage() : conference not create callSession", ImsCallLogLevel.DEBUG);
                                 }
 
+                                /// M: for ALPS04742742. @{
+                                if (mHangupHostDuringMerge) {
+                                    mHangupHostDuringMerge = false;
+                                    terminateConferenceSession();
+                                }
+                                /// @}
                                 break;
                             default:
                                 break;
                         }
                     } else if (mCallId != null && mCallId.equals(callInfo[0])) {
-                        if (TextUtils.isEmpty(mCallNumber)) {
-                            mCallNumber = callInfo[6];
+                        detailLog("EVENT_CALL_INFO_INDICATION: msgType " + msgType +
+                                ", mCallNumber = " + sensitiveEncode(mCallNumber));
+
+                        if (OperatorUtils.isMatched(OperatorUtils.OPID.OP50, mPhoneId)) {
+                            if ((callInfo[6] != null) && (!callInfo[6].equals(""))) {
+                                callInfo[6] = callInfo[6].replace("+81","0");
+                                logWithCallId("callInfo[6] = " + sensitiveEncode(callInfo[6]), ImsCallLogLevel.DEBUG);
+                            }
+
+                            if ((callInfo[8] != null) && (!callInfo[8].equals(""))) {
+                                callInfo[8] = callInfo[8].replace("+81","0");
+                                logWithCallId("callInfo[8] = " + sensitiveEncode(callInfo[8]), ImsCallLogLevel.DEBUG);
+                            }
+                            mCallProfile.setCallExtra(ImsCallProfile.EXTRA_OI, callInfo[6]);
+                        }
+
+                        if (mShouldUpdateAddressFromEcpi || TextUtils.isEmpty(mCallNumber)) {
+                            if ((callInfo[6] != null) && (!callInfo[6].equals(""))) {
+                                String ecpiCallNumber = callInfo[6].replace("*31#","").replace("#31#","");
+                                if (!ecpiCallNumber.equals(mCallNumber)) {
+                                    mCallNumber = ecpiCallNumber;
+                                }
+                            }
                         }
                         isCallDisplayUpdated =
                             updateCallDisplayFromNumberOrPau(mCallNumber, callInfo[8]);
@@ -1869,46 +2114,35 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                         switch (msgType) {
                             case 0:
                                 mState = ImsCallSession.State.ESTABLISHING;
+                                mMTSetup = true;
                                 if ((callInfo[5] != null) && (!callInfo[5].equals(""))) {
                                     callMode = Integer.parseInt(callInfo[5]);
                                 }
 
+                                updateRat(mImsService.getRatType(mPhoneId), IMS_CALL_TYPE_UNKNOWN);
                                 updateCallType(callMode, mVideoState);
                                 // For VzW MDMI
                                 sendCallEventWithRat(msgType);
 
                                 updateMultipartyState(callMode, true);
 
-                                detailLog("handleMessage() : mCallNumber = " + sensitiveEncode(mCallNumber));
+                                if (mIsRingingRedirect) {
+                                    mMtkImsCallSessionProxy.notifyCallSessionRinging(mCallProfile);
+                                } else {
+                                    Bundle extras = new Bundle();
+                                    extras.putString(ImsManager.EXTRA_CALL_ID, mCallId);
+                                    extras.putString(MtkImsConstants.EXTRA_DIAL_STRING, callInfo[6]);
+                                    extras.putInt(ImsManager.EXTRA_SERVICE_ID, serviceId);
 
-                                Intent intent = new Intent(ImsManager.ACTION_IMS_INCOMING_CALL);
-                                intent.putExtra(ImsManager.EXTRA_CALL_ID, mCallId);
-                                intent.putExtra(MtkImsConstants.EXTRA_DIAL_STRING, callInfo[6]);
-                                intent.putExtra(ImsManager.EXTRA_SERVICE_ID, serviceId);
-
-
-                                //for RTT
-                                mOpExt.checkIncomingRttCallType(intent);
-
-                                /* From P, we dinnot send intent in MT case, instead, we callback via AOSP interface */
-                                /*
-                                mContext.sendBroadcast(intent);
-                                */
-
-                                Bundle extras = new Bundle();
-                                extras.putString(ImsManager.EXTRA_CALL_ID, mCallId);
-                                extras.putString(MtkImsConstants.EXTRA_DIAL_STRING, callInfo[6]);
-                                extras.putInt(ImsManager.EXTRA_SERVICE_ID, serviceId);
-
-                                mImsService.notifyIncomingCallSession(mPhoneId, getServiceImpl(), extras);
-
+                                    mImsService.notifyIncomingCallSession(mPhoneId, getServiceImpl(), extras);
+                                }
+                                // For RTT send BOM
+                                mEnableSendRttBom = true;
                                 break;
                             case 2: // CSMCC_ALERT_MSG
                                 int isIbt = updateIsIbt(callInfo);
 
                                 updateMultipartyState(callMode, false);
-
-                                logWithCallId("handleMessage() : mCallNumber " + sensitiveEncode(mCallNumber) + " isIbt = " + isIbt, ImsCallLogLevel.DEBUG);
 
                                 /// M: video ringtone @{
                                 updateVideoRingtone(callMode, isIbt);
@@ -1918,6 +2152,7 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                                 sendCallEventWithRat(msgType);
 
                                 if (mState != ImsCallSession.State.TERMINATING) {
+                                    mState = ImsCallSession.State.NEGOTIATING;
                                     if (mListener != null) {
                                         try {
                                             mListener.callSessionProgressing(mCallProfile.mMediaProfile);
@@ -1926,27 +2161,18 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                                         }
                                     }
                                     mHasPendingMo = false;
+
+                                    if (isCallDisplayUpdated) {
+                                        notifyCallSessionUpdated();
+                                    }
                                 }
                                 break;
-                            case 6: //CSMCC_CALL_CONNECTED_MSG
+                            case 6: // CSMCC_CALL_CONNECTED_MSG
                                 mState = ImsCallSession.State.ESTABLISHED;
                                 mCallProfile.mMediaProfile.mAudioDirection =
                                         ImsStreamMediaProfile.DIRECTION_SEND_RECEIVE;
 
                                 updateMultipartyState(callMode, false);
-
-                                logWithCallId("handleMessage() : mCallNumber = " + sensitiveEncode(mCallNumber), ImsCallLogLevel.DEBUG);
-
-                                // Case: VoWifi is registered, but the ECC call is on LTE. To show
-                                // ECC call icon correctly, update the actual ECC call RAT here.
-                                if (mIsEmergencyCall) {
-                                    String ratType = SystemProperties.get("ril.ims.ecccallrat");
-                                    if (ratType.equals("1")) {
-                                        updateRat(WifiOffloadManager.RAN_TYPE_MOBILE_3GPP);
-                                    } else if (ratType.equals("2")) {
-                                        updateRat(WifiOffloadManager.RAN_TYPE_WIFI);
-                                    }
-                                }
 
                                 if (mState != ImsCallSession.State.TERMINATING) {
                                     if (mListener != null) {
@@ -1960,15 +2186,13 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                                             mListener.callSessionInitiated(mCallProfile);
                                         } catch (RuntimeException e) {
                                             logWithCallId("RuntimeException callSessionProgressing()/callSessionInitiated()",
-                                                   ImsCallLogLevel.ERROR);
+                                                    ImsCallLogLevel.ERROR);
                                         }
                                     }
                                     mHasPendingMo = false;
                                 }
 
                                 boolean notifyCallSessionUpdate = false;
-
-                                logWithCallId("handleMessage() : update call type = " + callMode, ImsCallLogLevel.DEBUG);
 
                                 int oldCallType = mCallProfile.mCallType;
                                 updateCallType(callMode, mVideoState);
@@ -1992,14 +2216,10 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                                 // Update WiFiOffloadService call status for call started case.
                                 updateCallStateForWifiOffload(mState);
 
-                                // RTT audio
-                                if (mOpExt.isRttEnabledForCallSession()) {
-                                    enableRttAudioIndication();
-                                }
+                                // Send RTT BOM
+                                checkAndSendRttBom();
                                 break;
-                            case 131: //CSMCC_STATE_CHANGE_HELD
-
-                                logWithCallId("handleMessage() : mCallNumber = " + sensitiveEncode(mCallNumber), ImsCallLogLevel.DEBUG);
+                            case 131: // CSMCC_STATE_CHANGE_HELD
                                 // For VzW MDMI
                                 sendCallEventWithRat(msgType);
                                 if (mListener != null && mState != ImsCallSession.State.TERMINATING) {
@@ -2015,22 +2235,27 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                                     } else if (isCallDisplayUpdated) {
                                         notifyCallSessionUpdated();
                                     }
+
+                                    if (mIsHideHoldEventDuringMerging) {
+                                        // May resume this held call sliently if merge failed.
+                                        mNeedHideResumeEventDuringMerging = true;
+                                    }
                                 }
                                 break;
-                            case 132: //CSMCC_STATE_CHANGE_ACTIVE
+                            case 132: // CSMCC_STATE_CHANGE_ACTIVE
                                 // For VzW MDMI
                                 sendCallEventWithRat(msgType);
 
                                 if (mListener != null) {
                                     if (mState == ImsCallSession.State.ESTABLISHED) {
-                                        logWithCallId("handleMessage() : mCallNumber = " + sensitiveEncode(mCallNumber), ImsCallLogLevel.DEBUG);
-                                        try {
-                                            mListener.callSessionResumed(mCallProfile);
-                                        } catch (RuntimeException e) {
-                                            logWithCallId("RuntimeException callSessionResumed()", ImsCallLogLevel.ERROR);
+                                        if (!mNeedHideResumeEventDuringMerging) {
+                                            try {
+                                                mListener.callSessionResumed(mCallProfile);
+                                            } catch (RuntimeException e) {
+                                                logWithCallId("RuntimeException callSessionResumed()",
+                                                        ImsCallLogLevel.ERROR);
+                                            }
                                         }
-
-                                        mListener.callSessionResumed(mCallProfile);
 
                                         if (mVTProvider != null) {
                                             mVTProvider.onReceiveCallSessionEvent(CALL_INFO_MSG_TYPE_ACTIVE);
@@ -2041,13 +2266,13 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                                     }
                                 }
                                 break;
-                            case 133: //CSMCC_STATE_CHANGE_DISCONNECTED
+                            case 133: // CSMCC_STATE_CHANGE_DISCONNECTED
                                 // For VzW MDMI
                                 sendCallEventWithRat(msgType);
                                 /// M: VzW requirement: handle SIP 486 Busy. @{
                                 boolean hasHoldCall =
                                     (mImsServiceCT.getCallInfo(ImsCallInfo.State.HOLDING) != null);
-                                if (mHasPendingMo
+                                if (mHasPendingMo && mMtkImsCallSessionProxy != null
                                         && (mOpImsCallSession.handleCallStartFailed(
                                         mMtkImsCallSessionProxy.getServiceImpl(), mImsRILAdapter, hasHoldCall) == true)) {
                                     break;
@@ -2055,7 +2280,7 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                                 /// @}
                                 callTerminated();
                                 break;
-                            case 135: //CSMCC_STATE_CHANGE_REMOTE_HOLD
+                            case 135: // CSMCC_STATE_CHANGE_REMOTE_HOLD
                                 // For VzW MDMI
                                 sendCallEventWithRat(msgType);
                                 updateIsIbt(callInfo);
@@ -2064,7 +2289,7 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                                     notifyCallSessionUpdated();
                                 }
                                 break;
-                            case 136: //CSMCC_STATE_CHANGE_REMOTE_RESUME
+                            case 136: // CSMCC_STATE_CHANGE_REMOTE_RESUME
                                 // For VzW MDMI
                                 sendCallEventWithRat(msgType);
                                 updateIsIbt(callInfo);
@@ -2073,8 +2298,8 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                                     notifyCallSessionUpdated();
                                 }
                                 break;
-                            case 137: //RTT ECC redial notification
-                                mOpExt.handleRttECCRedialEvent(mMtkImsCallSessionProxy.getServiceImpl());
+                            case 137: // RTT ECC redial notification
+                                handleRttECCRedialEvent();
                             default:
                                 break;
                         }
@@ -2083,10 +2308,18 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                         logWithCallId("handleMessage() : receive 130 URC, assign call_id = " + callInfo[0], ImsCallLogLevel.DEBUG);
 
                         mImsServiceCT.processCallInfoIndication(callInfo, ImsCallSessionProxy.this, mCallProfile);
+                        if (mMtkImsCallSessionProxy != null) {
+                            mMtkImsCallSessionProxy.notifyCallSessionCalling();
+                        }
 
                         isCallDisplayUpdated =
                             updateCallDisplayFromNumberOrPau(mCallNumber, callInfo[8]);
                         updateOIR(mCallNumber, callInfo[8]);
+
+                        // Can't receive +EVADSREP, update rat here.
+                        if (!ImsCommonUtil.supportMdAutoSetupIms()) {
+                            updateRat(mImsService.getRatType(mPhoneId), IMS_CALL_TYPE_UNKNOWN);
+                        }
                         mState = ImsCallSession.State.ESTABLISHING;
                         mCallId = callInfo[0];
                         // For VzW MDMI
@@ -2190,10 +2423,15 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                     } else {
                         Message result;
                         ImsCallInfo myCallInfo = mImsServiceCT.getCallInfo(mCallId);
-
+                        if (myCallInfo == null) {
+                            logWithCallId("can't find this call callInfo", ImsCallLogLevel.ERROR);
+                            retrieveMergeFail();
+                            break;
+                        }
                         // get call info of another peer.
                         ImsCallInfo beMergedCallInfo = mImsServiceCT.getCallInfo(mMergedCallId);
                         if (beMergedCallInfo == null) {
+                            logWithCallId("can't find this another call callInfo", ImsCallLogLevel.ERROR);
                             retrieveMergeFail();
                             break;
                         }
@@ -2201,19 +2439,14 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                         if (myCallInfo.mIsConference) {
                             logWithCallId("handleMessage() : myCallI is conference, merge normal call", ImsCallLogLevel.DEBUG);
                             result = mHandler.obtainMessage(EVENT_ADD_CONFERENCE_RESULT);
-                            mImsRILAdapter.inviteParticipant(
-                                    Integer.parseInt(mCallId),
-                                    beMergedCallInfo.mCallNum,
-                                    Integer.parseInt(beMergedCallInfo.mCallId),
-                                    result);
+                            mImsRILAdapter.inviteParticipantsByCallId(Integer.parseInt(mCallId),
+                                        beMergedCallInfo, result);
                         } else {
                             logWithCallId("handleMessage() : bg conference is foreground now, merge normal call", ImsCallLogLevel.DEBUG);
                             result = mHandler.obtainMessage(EVENT_ADD_CONFERENCE_RESULT);
-                            mImsRILAdapter.inviteParticipant(
-                                    Integer.parseInt(beMergedCallInfo.mCallId),
-                                    myCallInfo.mCallNum,
-                                    Integer.parseInt(myCallInfo.mCallId),
-                                    result);
+                            mImsRILAdapter.inviteParticipantsByCallId(
+                                        Integer.parseInt(beMergedCallInfo.mCallId),
+                                        myCallInfo, result);
                         }
                         /// @}
                     }
@@ -2237,6 +2470,7 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
 
                         if (ar.exception == null) {
                             mIsAddRemoveParticipantsCommandOK = true;
+                            ImsConferenceHandler.getInstance().modifyParticipantComplete();
                         } else {
                             ImsConferenceHandler.getInstance().modifyParticipantFailed();
                         }
@@ -2244,9 +2478,10 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
 
                         if (mPendingParticipantInfoIndex < mPendingParticipantStatistics) {
                             Message result = mHandler.obtainMessage(EVENT_ADD_CONFERENCE_RESULT);
-
-                            mImsRILAdapter.inviteParticipant(Integer.parseInt(mCallId),
-                                    mPendingParticipantInfo[mPendingParticipantInfoIndex], -1, result);
+                            ImsConferenceHandler.getInstance().tryAddParticipant(
+                                    mPendingParticipantInfo[mPendingParticipantInfoIndex]);
+                            mImsRILAdapter.inviteParticipants(Integer.parseInt(mCallId),
+                                    mPendingParticipantInfo[mPendingParticipantInfoIndex], result);
 
                         } else {
                             if (mListener != null) {
@@ -2277,15 +2512,23 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                     if (ar.exception == null) {
                         mIsAddRemoveParticipantsCommandOK = true;
                         ImsConferenceHandler.getInstance().modifyParticipantComplete();
+                        mRetryRemoveUri = null;
                     } else {
-                        ImsConferenceHandler.getInstance().modifyParticipantFailed();
+                        if (mRetryRemoveUri != null) {
+                            Message result = mHandler.obtainMessage(EVENT_REMOVE_CONFERENCE_RESULT);
+                            mImsRILAdapter.removeParticipants(Integer.parseInt(mCallId), mRetryRemoveUri, result);
+                            mRetryRemoveUri = null;
+                            break;
+                        } else {
+                            ImsConferenceHandler.getInstance().modifyParticipantFailed();
+                        }
                     }
 
                     mPendingParticipantInfoIndex ++;
                     if (mPendingParticipantInfoIndex < mPendingParticipantStatistics) {
-                        Message result = mHandler.obtainMessage(EVENT_ADD_CONFERENCE_RESULT);
+                        Message result = mHandler.obtainMessage(EVENT_REMOVE_CONFERENCE_RESULT);
 
-                        mImsRILAdapter.removeParticipant(Integer.parseInt(mCallId),
+                        mImsRILAdapter.removeParticipants(Integer.parseInt(mCallId),
                                 mPendingParticipantInfo[mPendingParticipantInfoIndex], result);
                     } else {
                         if (mListener != null) {
@@ -2309,11 +2552,12 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
 
                     if (ar.exception != null) {
                         imsReasonInfo = new ImsReasonInfo();
-                    /// M: ALPS02502328, use the illegal state as terminate reason. @{
-                    } else if (mTerminateReason == ImsReasonInfo.CODE_LOCAL_ILLEGAL_STATE) {
-                        logWithCallId("handleMessage() : Terminate conference due to mMergeHost is null", ImsCallLogLevel.DEBUG);
-                        imsReasonInfo = new ImsReasonInfo(mTerminateReason, 0);
-                        mTerminateReason = -1;
+                    /// M: ALPS04419177, use local terminate reason as disconnect cause. @{
+                    } else if (mLocalTerminateReason != ImsReasonInfo.CODE_UNSPECIFIED) {
+                        logWithCallId("handleMessage() : notify disconnect cause by mLocalTerminateReason "
+                                + mLocalTerminateReason, ImsCallLogLevel.DEBUG);
+                        imsReasonInfo = new ImsReasonInfo(mLocalTerminateReason, 0);;
+                        mLocalTerminateReason = ImsReasonInfo.CODE_UNSPECIFIED;
                     /// @}
                     } else {
                         // Check SIP code/ReasonHeader first in case +ESIPCPI come after ECPI 133.
@@ -2322,17 +2566,6 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
 
                             LastCallFailCause failCause = (LastCallFailCause) ar.result;
                             sipCauseCode = imsReasonInfoCodeFromRilReasonCode(failCause.causeCode);
-                            /// M: Release 12, ECC redial with NW assigned category @{
-                            if (sipCauseCode == MtkImsReasonInfo.CODE_SIP_REDIRECTED_EMERGENCY) {
-                                try {
-                                    int cat = Integer.valueOf(failCause.vendorCause);
-                                    getImsExtCallUtil().setSpecificEccCategory(cat);
-                                } catch (NumberFormatException e) {
-                                    logWithCallId("handleMessage() : ECC redirect report is not a number: " +
-                                            failCause.vendorCause, ImsCallLogLevel.ERROR);
-                                }
-                            }
-                            /// @}
                             imsReasonInfo = new ImsReasonInfo(sipCauseCode, 0);
                         } else {
                             logWithCallId("handleMessage() : get disconnect cause directly from +ESIPCPI", ImsCallLogLevel.DEBUG);
@@ -2351,7 +2584,7 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
 
                     /* +EIMSCMODE: <call id>,<call mode>,<video state>,<audio direction>,<PAU>  */
 
-                    //update call mode infor to imsServiceCT.
+                    // update call mode infor to imsServiceCT.
                     mImsServiceCT.processCallModeChangeIndication(callModeInfo);
 
                     if (callModeInfo != null && callModeInfo[0].equals(mCallId)) {
@@ -2391,7 +2624,7 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                 case EVENT_VIDEO_CAPABILITY_INDICATION:
                     ar = (AsyncResult) msg.obj;
                     String[] videoCapabilityInfo = (String[]) ar.result;
-                    //+EIMSVCAP: <call ID>, <local video capability>, <remote video capability>
+                    // +EIMSVCAP: <call ID>, <local video capability>, <remote video capability>
                     int  lVideoCapability = 0;
                     int  rVideoCapability = 0;
                     if (videoCapabilityInfo != null &&
@@ -2418,9 +2651,12 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
 
                         correctRemoteVideoCapabilityForVideoConference();
 
-                        // Voice conference will always upgrade failed
-                        // so take away the upgrade capability
-                        if (isMultiparty() && !isVideoCall(mCallProfile)) {
+                        // For AT&T support voice conference upgrade to video conference
+                        boolean supportUpgradeWhenVoiceConf =
+                            OperatorUtils.isMatched(OperatorUtils.OPID.OP07, mPhoneId);
+
+                        if (isMultiparty() && !isVideoCall(mCallProfile) &&
+                                !supportUpgradeWhenVoiceConf) {
                             removeRemoteCallVideoCapability();
                         }
 
@@ -2432,15 +2668,19 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                     }
                     break;
                 case EVENT_DTMF_DONE:
-                    // Send message to original target handler.
-                    if (mDtmfTarget != null && mDtmfMsg != null) {
+                    if (mDtmfMsg != null) {
                         try {
-                            mDtmfTarget.send(mDtmfMsg);
+                            // Notify framework that the DTMF was sent.
+                            Messenger dtmfMessenger = mDtmfMsg.replyTo;
+                            logWithCallId("dtmfMessenger " + dtmfMessenger, ImsCallLogLevel.DEBUG);
+                            if (dtmfMessenger != null) {
+                                dtmfMessenger.send(mDtmfMsg);
+                            }
                         } catch (RemoteException e) {
+                            // Remote side is dead
                             logWithCallId("handleMessage() : RemoteException for DTMF", ImsCallLogLevel.ERROR);
                         }
                     }
-                    mDtmfTarget = null;
                     mDtmfMsg = null;
                     break;
                 /// M: Messages for USSI @{
@@ -2449,13 +2689,18 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                     if (mListener != null) {
                         if (msg.arg1 == USSI_REQUEST) {
                             if (ar != null && ar.exception != null) {
+                                logWithCallId("EVENT_SEND_USSI_COMPLETE : callSessionInitiatedFailed", ImsCallLogLevel.DEBUG);
                                 mListener.callSessionInitiatedFailed(new ImsReasonInfo());
                             } else {
+                                logWithCallId("EVENT_SEND_USSI_COMPLETE : callSessionInitiated", ImsCallLogLevel.DEBUG);
                                 mListener.callSessionInitiated(mCallProfile);
+                                logWithCallId("EVENT_SEND_USSI_COMPLETE : callSessionTerminated", ImsCallLogLevel.DEBUG);
+                                mListener.callSessionTerminated(new ImsReasonInfo());
                             }
                         } else {
                             if (ar != null && ar.exception != null) {
-                                mListener.callSessionTerminated(new ImsReasonInfo());
+                                logWithCallId("EVENT_SEND_USSI_COMPLETE : callSessionInitiatedFailed", ImsCallLogLevel.DEBUG);
+                                mListener.callSessionInitiatedFailed(new ImsReasonInfo());
                             }
                         }
                     }
@@ -2465,77 +2710,6 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                         mListener.callSessionTerminated(new ImsReasonInfo());
                     }
                     break;
-                case EVENT_ON_USSI:
-                    ar = (AsyncResult) msg.obj;
-                    /*
-                     * USSI response from the network, or network initiated operation.
-                       +EIUSD: <class>,<status>,<str>,<lang>,<error_code>,<alertingpattern>,<sip_cause>
-                         <class>:
-                         1   USSD notify
-                         2   SS notify
-                         3   MD execute result
-                         <status>:  if class=1
-                         0   no further user action required
-                         1   further user action required
-                         2   USSD terminated by network
-                         3   other local client has responded
-                         4   operation not supported
-                         5   network time out
-                         <status>:if class=3, value is return value of MD
-                         0   execute success
-                         1   common error
-                         2   IMS unregistered
-                         3   IMS busy
-                         4   NW error response
-                         5   session not exist
-                         6   NW not support(404)
-                    */
-                    String[] eiusd = (String[]) ar.result;
-                    if (DBG) {
-                        logWithCallId("handleMessage() : receive EVENT_ON_USSI: " + eiusd[0] + "," + eiusd[1]
-                            + "," + eiusd[2] + "," + eiusd[3] + "," + eiusd[4] + "," + eiusd[5]
-                            + "," + eiusd[6] + "," + eiusd[7], ImsCallLogLevel.DEBUG);
-                    }
-                    int ussiClass = Integer.parseInt(eiusd[0]);
-                    int ussiStatus = Integer.parseInt(eiusd[1]);
-                    int phoneId = Integer.parseInt(eiusd[7]);
-                    int mode = -1;
-                    if (phoneId != mPhoneId) {
-                        break;
-                    }
-                    if (ussiClass == 1) {
-                        if (ussiStatus == 0 || ussiStatus == 2) {
-                            mode = ImsCall.USSD_MODE_NOTIFY;
-                        } else if (ussiStatus == 1) {
-                            mode = ImsCall.USSD_MODE_REQUEST;
-                        } else if (ussiStatus == 4) {
-                            /**
-                            * If AP receives <error_code> != 0 from modem when <m> = 1 & <n> = 4,
-                            * no need to CSFB
-                            *
-                            * From TS 24.390:
-                            * <error-code> is an integer. The following values are defined.
-                            * If the received value is not listed below, it must be treated as 1.
-                            * 1    error - unspecified
-                            * 2    language/alphabet not supported
-                            * 3    unexpected data value
-                            * 4    USSD-busy
-                            */
-                            if (Integer.parseInt(eiusd[4]) != 0) {
-                                Rlog.w(LOG_TAG, "EVENT_ON_USSI, override the mode with -2");
-                                mode = -2;  // using -2 to tell MtkImsPhone not to CSFB
-                            }
-                        }
-                    } else if (ussiClass == 3) {
-                        if (ussiStatus == 0) {
-                            mode = ImsCall.USSD_MODE_NOTIFY;
-                        }
-                    }
-                    if (mListener != null) {
-                        mListener.callSessionUssdMessageReceived(mode, eiusd[2]);
-                    }
-                    break;
-                /// @}
                 case EVENT_ECT_RESULT:
                     handleEctResult((AsyncResult) msg.obj);
                     break;
@@ -2574,41 +2748,68 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                 case EVENT_IMS_CONFERENCE_INDICATION:
                     handleImsConferenceIndication((AsyncResult) msg.obj);
                     break;
-                case EVENT_GTT_CAPABILITY_INDICATION:
-                    mOpExt.handleGttCapabilityIndication((AsyncResult) msg.obj,
-                        mMtkImsCallSessionProxy.getServiceImpl(), mCallId, mState);
-
-                    boolean isRttEnabledForCallSession = mOpExt.isRttEnabledForCallSession();
-                    int status = ImsStreamMediaProfile.RTT_MODE_DISABLED;
-                    if (isRttEnabledForCallSession) {
-                        status = ImsStreamMediaProfile.RTT_MODE_FULL;
-                    }
-                    mCallProfile.mMediaProfile.setRttMode(status);
-                    notifyCallSessionUpdated();
-                    // RTT audio
-                    enableRttAudioIndication();
+                case EVENT_RTT_CAPABILITY_INDICATION:
+                    handleRttCapabilityIndication((AsyncResult) msg.obj);
                     break;
                 case EVENT_RTT_TEXT_RECEIVE_INDICATION:
-                    mOpExt.handleRttTextReceive((AsyncResult) msg.obj,
-                       mCallId , mListener);
+                    handleRttTextReceived((AsyncResult) msg.obj);
                     break;
                 case EVENT_RTT_MODIFY_RESPONSE:
-                    mOpExt.handleRttModifyResponse((AsyncResult) msg.obj,
-                        mCallId, mListener);
+                    handleRttModifyResponse((AsyncResult) msg.obj);
                     break;
                 case EVENT_RTT_MODIFY_REQUEST_RECEIVE:
-                    mOpExt.handleRttModifyRequestReceive((AsyncResult) msg.obj,
-                        ImsCallSessionProxy.this.getServiceImpl(), mCallId,
-                        mListener, mImsRILAdapter, mWasVideoCallForRtt);
+                    handleRttModifyRequestReceived((AsyncResult) msg.obj);
+                    break;
+                case EVENT_RTT_AUDIO_INDICATION:
+                    handleRttAudioIndication((AsyncResult) msg.obj);
                     break;
                 case EVENT_SPEECH_CODEC_INFO:
-                    handleSpeechCodecInfo((AsyncResult) msg.obj);
+                    if (mCallId != null) {
+                        ImsCallInfo myCallInfo = mImsServiceCT.getCallInfo(mCallId);
+                        if (myCallInfo != null && (myCallInfo.mState == ImsCallInfo.State.ACTIVE ||
+                                myCallInfo.mState == ImsCallInfo.State.ALERTING)) {
+                            handleSpeechCodecInfo((AsyncResult) msg.obj);
+                        } else {
+                            logWithCallId("skip speech not active or alerting", ImsCallLogLevel.DEBUG);
+                        }
+                    } else {
+                        logWithCallId("skip speech codec update when mCallId null", ImsCallLogLevel.DEBUG);
+                    }
                     break;
                 case EVENT_REDIAL_ECC_INDICATION:
                     handleRedialEccIndication((AsyncResult) msg.obj);
                     break;
-                case EVENT_AUDIO_INDICATION:
-                    handleAudioIndication((AsyncResult)msg.obj);
+                case EVENT_ON_SUPP_SERVICE_NOTIFICATION:
+                    ar = (AsyncResult) msg.obj;
+                    SuppServiceNotification notification = (SuppServiceNotification) ar.result;
+                    if (mCallId != null && notification.index != Integer.parseInt(mCallId)) {
+                        break;
+                    }
+                    logWithCallId("handleMessage() : EVENT_ON_SUPP_SERVICE_NOTIFICATION, notify",
+                            ImsCallLogLevel.DEBUG);
+                    ImsSuppServiceNotification imsNotification = new ImsSuppServiceNotification(
+                            notification.notificationType, notification.code, notification.index,
+                            notification.type, notification.number, notification.history);
+                    synchronized (mLock) {
+                        if (mListener != null) {
+                            mListener.callSessionSuppServiceReceived(imsNotification);
+                            mCachedSuppServiceInfo = null;
+                        } else {
+                            mCachedSuppServiceInfo = ar;
+                        }
+                    }
+                    break;
+                case EVENT_SIP_HEADER_INFO:
+                    handleSipHeaderInfo((AsyncResult) msg.obj);
+                    break;
+                case EVENT_CALL_RAT_INDICATION:
+                    handleCallRatIndication((AsyncResult) msg.obj);
+                    break;
+                case EVENT_CALL_ADDITIONAL_INFO:
+                    handleCallAdditionalInfo((AsyncResult) msg.obj);
+                    break;
+                case EVENT_CACHED_TERMINATE_REASON:
+                    handleCachedTerminateReason((ImsReasonInfo) msg.obj);
                     break;
                 default:
                     logWithCallId("handleMessage() : unknown messahe, ignore", ImsCallLogLevel.DEBUG);
@@ -2616,28 +2817,48 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
             }
         }
 
-        private void handleEconfIndication(String[] result) {
+        private void handleEconfIndication(String[] params) {
             // +ECONF:<conf_call_id>,<op>,<num>,<result>,<cause>[,<joined_call_id>]
+            String confCallId = params[0];
+            String result = params[3];
+            String joinedCallId= params[5];
+
             if (DBG) {
                 logWithCallId("handleEconfIndication() : receive EVENT_ECONF_RESULT_INDICATION mCallId:" + mCallId
-                        + ", conf_call_id:" + result[0] + "joined_call_id:" + result[5], ImsCallLogLevel.DEBUG);
+                        + ", conf_call_id:" + confCallId + ", op: " + params[1]
+                        + ", number: " + sensitiveEncode(params[2]) + ", result: " + params[3]
+                        + ", joined_call_id:" + joinedCallId, ImsCallLogLevel.DEBUG);
             }
 
-            // Prevent timing issue in ImsCall.processMergeComplete(), it will check if the
-            // session is still alive, by marking this session "terminating"
-            // TODO: check which parameter means original call id
-            if (mCallId != null && mCallId.equals(result[5]) && result[3].equals("0")) {
-                mState = ImsCallSession.State.TERMINATING;
+            if (mCallId != null && mCallId.equals(joinedCallId) && result.equals("0")) {
+                mMerged = true;
             }
 
             if (mIsMerging != true) {
                 return;
             }
 
+            // Prevent timing issue in ImsCall.processMergeComplete(), it will check if the
+            // session is still alive, by marking this session as "TERMINATING"
+            if (result.equals("0")) {
+                if (mImsServiceCT.getCallInfo(joinedCallId) != null &&
+                        mImsServiceCT.getCallInfo(joinedCallId).mCallSession != null) {
+                    mImsServiceCT.getCallInfo(joinedCallId).mCallSession.mState =
+                            ImsCallSession.State.TERMINATING;
+                    if (DBG) {
+                        logWithCallId("handleEconfIndication() : call id " + joinedCallId
+                                + " is merged successfully", ImsCallLogLevel.DEBUG);
+                    }
+                }
+            }
+
             if (mNormalCallsMerge) {
                 // normal call merge normal call
+                if (result.equals("0") && joinedCallId != null) {
+                    ImsConferenceHandler.getInstance().addFirstMergeParticipant(joinedCallId);
+                }
                 mEconfCount++;
-                if (result[3].equals("0")) {
+                if (result.equals("0")) {
                     mThreeWayMergeSucceeded = true;
                 }
                 if (mEconfCount == 2) {
@@ -2649,29 +2870,36 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                     if (mThreeWayMergeSucceeded &&
                              ImsConferenceHandler.getInstance().isConferenceActive()) {
                         mergeCompleted();
+
+                        // Close self for case 1 & case 2.
+                        if (mMerged) {
+                            close();
+                        // Close peer for Case 3.
+                        } else {
+                            if (mImsServiceCT.getCallInfo(mMergedCallId) != null &&
+                                    mImsServiceCT.getCallInfo(mMergedCallId).mCallSession != null) {
+                                mImsServiceCT.getCallInfo(mMergedCallId).mCallSession.close();
+                            }
+                        }
                     } else {
                         retrieveMergeFail();
                         /// ALPS02383993: Terminate the conference if merge failed @{
-                        int confCallId = Integer.parseInt(result[0]);
-                        mImsRILAdapter.terminate(confCallId);
+                        int confCallIdInt = Integer.parseInt(confCallId);
+                        mImsRILAdapter.terminate(confCallIdInt);
                         /// @}
                     }
-                    //reset mEconfCount in order to merge again,
-                    //when one of them failed to merge.
+                    // reset mEconfCount in order to merge again,
+                    // when one of them failed to merge.
                     mEconfCount = 0;
                     mNormalCallsMerge = false;
                     mThreeWayMergeSucceeded = false;
                 }
             } else {
-
                 // conference call merge normal call
-                if (result[3].equals("0")) {
-
+                if (result.equals("0")) {
                     logWithCallId("handleEconfIndication() : ConfCreated successed", ImsCallLogLevel.DEBUG);
                     mergeCompleted();
-
                 } else {
-
                     logWithCallId("handleEconfIndication() : ConfCreated failed", ImsCallLogLevel.DEBUG);
                     retrieveMergeFail();
                 }
@@ -2781,38 +3009,7 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                 return;
             }
             ArrayList<User> result = (ArrayList<User>) ar.result;
-            // Count active participants number.
-            int activeParticipantsNum = 0;
-            for (User user : result) {
-                if (!isSelfAddress(user.mUserAddr)) {
-                    if (!ImsConferenceState.STATUS_DISCONNECTED.equals(user.mStatus)) {
-                        activeParticipantsNum++;
-                    }
-                }
-            }
-            boolean shouldAutoTerminateConference = shouldAutoTerminateEmptyConf();
-            boolean shouldUpdateConference = false;
-            logWithCallId("handleImsConferenceIndication()" +
-                    " activeParticipantsNum:" + activeParticipantsNum +
-                    " mHaveUpdateConferenceWithMember:" + mHaveUpdateConferenceWithMember +
-                    " shouldAutoTerminateConference:" + shouldAutoTerminateConference,
-                    ImsCallLogLevel.DEBUG);
-
-            if (!shouldAutoTerminateConference) {
-                shouldUpdateConference = true;
-            } else if (activeParticipantsNum > 0) {
-                shouldUpdateConference = true;
-                // One key conference report CEP with only self in the beginning,
-                // We should auto terminate it only after once other participants
-                // existed in the conference.
-                if (!mHaveUpdateConferenceWithMember) {
-                    mHaveUpdateConferenceWithMember = true;
-                }
-            } else if (!mHaveUpdateConferenceWithMember) {
-                shouldUpdateConference = true;
-            }
-
-            if (shouldUpdateConference) {
+            if (result.size() > 0) {
                 ImsConferenceState confState = convertToImsConferenceState(result);
                 try {
                     mListener.callSessionConferenceStateUpdated(confState);
@@ -2829,48 +3026,30 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
 
         private ImsConferenceState convertToImsConferenceState(ArrayList<User> users) {
             ImsConferenceState confState = new ImsConferenceState();
+            mParticipantsList.clear();
             int index = 0;
             for (int i = 0; i < users.size(); i++) {
                 Bundle userInfo = new Bundle();
                 String userAddr = users.get(i).mUserAddr;
+                String endPoint = users.get(i).mEndPoint;
                 userInfo.putString(ImsConferenceState.USER, userAddr);
                 userInfo.putString(ImsConferenceState.DISPLAY_TEXT, users.get(i).mDisplayText);
-                userInfo.putString(ImsConferenceState.ENDPOINT, users.get(i).mEndPoint);
+                userInfo.putString(ImsConferenceState.ENDPOINT, endPoint);
                 userInfo.putString(ImsConferenceState.STATUS, users.get(i).mStatus);
                 userInfo.putString(USER_ENTITY, users.get(i).mEntity);
                 if (userAddr == null || userAddr.trim().isEmpty()) {
                     confState.mParticipants.put(Integer.toString(index), userInfo);
+                    mParticipantsList.add(Integer.toString(index));
                     index++;
                 } else {
-                    confState.mParticipants.put(userAddr, userInfo);
+                    confState.mParticipants.put(userAddr + "_" + endPoint, userInfo);
+                    mParticipantsList.add(userAddr);
                 }
             }
             mParticipants = confState.mParticipants;
             return confState;
         }
 
-        // Always return true currently, no specific request need to return false.
-        private boolean shouldAutoTerminateEmptyConf() {
-            boolean shouldTerminate = true;
-            logWithCallId("shouldTerminate:" + shouldTerminate, ImsCallLogLevel.DEBUG);
-            return shouldTerminate;
-        }
-
-        private boolean isSelfAddress(String addr) {
-            if (mSelfAddressList == null) {
-                mSelfAddressList = mImsServiceCT.getSelfAddressList();
-            }
-            if (mSelfAddressList != null) {
-                for (String selfAddress : mSelfAddressList) {
-                    logWithCallId("isSelfAddress() selfId: " + sensitiveEncode(selfAddress)
-                    + " addr: " + sensitiveEncode(addr), ImsCallLogLevel.DEBUG);
-                    if (PhoneNumberUtils.compareLoosely(addr, selfAddress)) {
-                        return true;
-                    }
-                }
-            }
-            return false;
-        }
         private boolean updateMultipartyState(int callMode, boolean isIncoming) {
             boolean isMultipartyMode = (callMode == IMS_VOICE_CONF || callMode == IMS_VIDEO_CONF
                     || callMode == IMS_VOICE_CONF_PARTS || callMode == IMS_VIDEO_CONF_PARTS);
@@ -2928,10 +3107,20 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
             }
 
             int oir = ImsCallProfile.OIR_PRESENTATION_NOT_RESTRICTED;
+            String displayName = getDisplayNameFromPau(pau);
+            String payPhoneName = new String("Coin line/payphone");
+
+            logWithCallId("updateOIR() : pau: [" + sensitiveEncode(pau) +
+                    "], displayName: [" + sensitiveEncode(displayName) + "]", ImsCallLogLevel.DEBUG);
 
             if (TextUtils.isEmpty(num) && TextUtils.isEmpty(pau)) {
                 oir = ImsCallProfile.OIR_PRESENTATION_RESTRICTED;
             } else if (!TextUtils.isEmpty(pau) && pau.toLowerCase().contains("anonymous")) {
+                oir = ImsCallProfile.OIR_PRESENTATION_RESTRICTED;
+            } else if (displayName.trim().equals(payPhoneName)) {
+                logWithCallId("updateOIR() : payhone", ImsCallLogLevel.DEBUG);
+                oir = ImsCallProfile.OIR_PRESENTATION_PAYPHONE;
+            } else if (TextUtils.isEmpty(pau) && OperatorUtils.isMatched(OperatorUtils.OPID.OP12, mPhoneId)) {
                 oir = ImsCallProfile.OIR_PRESENTATION_RESTRICTED;
             }
 
@@ -3073,6 +3262,202 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                 return WFC_GET_CAUSE_FAILED;
             }
         }
+
+        private void handleRttCapabilityIndication(AsyncResult ar) {
+            // +EIMSTCAP:<call id>,<local text capability>,<remote text capability>
+            // <local text status>,<real remote text capability>
+            // 0  Off
+            // 1  On
+            String callId = mCallId;
+            if (ar == null) {
+                logWithCallId("handleRttCapabilityIndication ar is null"
+                        , ImsCallLogLevel.ERROR);
+                return;
+            }
+
+            int[] result = (int[]) ar.result;
+            if (mMtkImsCallSessionProxy == null || callId == null
+                    || result[0] != Integer.parseInt(callId)) {
+                return;
+            }
+            int localCapability = result[1];
+            int remoteCapability = result[2];
+            int localTextStatus = result[3];
+            int realRemoteTextCapability = result[4];
+            logWithCallId("handleRttCapabilityIndication local cap= " + localCapability +
+                    " remo status= " + remoteCapability +
+                    " local status= "+ localTextStatus +
+                    " remo cap= " + realRemoteTextCapability
+                    , ImsCallLogLevel.DEBUG);
+
+            mIsRttEnabledForCallSession = remoteCapability == 1 && localTextStatus == 1;
+
+            processMtRttWithoutPrecondition(remoteCapability);
+
+            logWithCallId("handleRttCapabilityIndication mIsRttEnabledForCallSession: "
+                    + mIsRttEnabledForCallSession, ImsCallLogLevel.DEBUG);
+
+            mMtkImsCallSessionProxy.notifyTextCapabilityChanged(
+                    localCapability, remoteCapability,
+                    localTextStatus, realRemoteTextCapability);
+
+            int status = ImsStreamMediaProfile.RTT_MODE_DISABLED;
+            if (mIsRttEnabledForCallSession) {
+                status = ImsStreamMediaProfile.RTT_MODE_FULL;
+            }
+            mCallProfile.mMediaProfile.setRttMode(status);
+            notifyCallSessionUpdated();
+
+            // Send BOM for for upgrade or remote upgrade.
+            checkAndSendRttBom();
+
+            // toggle RTT audio indication
+            toggleRttAudioIndication();
+        }
+
+        private void handleRttECCRedialEvent() {
+            logWithCallId("notifyRttECCRedialEvent", ImsCallLogLevel.DEBUG);
+            if (mMtkImsCallSessionProxy == null) {
+                return;
+            }
+            mMtkImsCallSessionProxy.notifyRttECCRedialEvent();
+        }
+
+        private void handleRttTextReceived(AsyncResult ar) {
+            if (ar == null) {
+                logWithCallId("handleRttTextReceived ar is null", ImsCallLogLevel.ERROR);
+                return;
+            }
+            String[] textReceived = (String[]) ar.result;
+            if (textReceived[0] == null || textReceived[1] == null || textReceived[2] == null) {
+                logWithCallId("textReceived is null", ImsCallLogLevel.ERROR);
+                return;
+            }
+            int targetCallid =  Integer.parseInt(textReceived[0]);
+            if (mListener == null || mCallId == null
+                    || targetCallid != Integer.parseInt(mCallId)) {
+                return;
+            }
+            logWithCallId("Received call id = " + textReceived[0]
+                    + " len = " + sensitiveEncode(String.valueOf(textReceived[1]))
+                    + " textMessage = " + sensitiveEncode(textReceived[2])
+                    + " actual len = " + sensitiveEncode(String.valueOf(textReceived[2].length()))
+                    , ImsCallLogLevel.DEBUG);
+            if (textReceived[2].length() == 0 || Integer.parseInt(textReceived[1]) == 0) {
+                logWithCallId("handleRttTextReceived: length is 0"
+                        , ImsCallLogLevel.ERROR);
+                return;
+            }
+
+            String decodeText = mRttTextEncoder.getUnicodeFromUTF8(textReceived[2]);
+            if (decodeText == null || decodeText.length() == 0) {
+                logWithCallId("handleRttTextReceived: decodeText length is 0"
+                        , ImsCallLogLevel.ERROR);
+                return;
+            }
+
+            mListener.callSessionRttMessageReceived(decodeText);
+        }
+
+        /**
+         * Handle RTT modify response event
+         * @param ar Async result
+         */
+        private void handleRttModifyResponse(AsyncResult ar) {
+
+            if (ar == null || mListener == null) {
+                logWithCallId("handleRttModifyResponse ar or mListener is null"
+                        , ImsCallLogLevel.ERROR);
+                return;
+            }
+            int[] result = (int[]) ar.result;
+            if (mCallId == null || result[0] != Integer.parseInt(mCallId)) {
+                return;
+            }
+            int response = result[1];
+            int status = 0;
+            /*
+             * URC RTTCALL Result:
+             * 0: command success
+             * 1: command fail
+             */
+            if (response == 0) { // RTTCALL Success
+                logWithCallId("handleRttModifyResponse success", ImsCallLogLevel.DEBUG);
+                status = android.telecom.Connection.RttModifyStatus.SESSION_MODIFY_REQUEST_SUCCESS;
+            } else { // RTTCALL Fail
+                logWithCallId("handleRttModifyResponse fail status = " + response
+                        , ImsCallLogLevel.DEBUG);
+                status = android.telecom.Connection.RttModifyStatus.SESSION_MODIFY_REQUEST_INVALID;
+            }
+
+            mListener.callSessionRttModifyResponseReceived(status);
+        }
+
+        /**
+         * Handle RTT modify request receive event
+         * @param ar Async result
+         */
+        private void handleRttModifyRequestReceived(AsyncResult ar) {
+
+            if (ar == null || mListener == null) {
+                logWithCallId("handleRttModifyRequestReceived ar or mListener is null"
+                        , ImsCallLogLevel.ERROR);
+                return;
+            }
+            int[] result = (int[]) ar.result;
+            if (mCallId == null || result[0] != Integer.parseInt(mCallId)) {
+                return;
+            }
+
+            if (!isAllowRttVideoSwitch()) {
+                logWithCallId("handleRttModifyRequestReceived() : RTT and video not switchable",
+                        ImsCallLogLevel.DEBUG);
+                sendRttModifyResponse(false);
+                return;
+            }
+
+            int status = result[1];
+            ImsCallProfile imsCallProfile = new ImsCallProfile();
+            logWithCallId("handleRttModifyRequestReceived status: " + status,
+                    ImsCallLogLevel.DEBUG);
+            if (status == 1) {
+                imsCallProfile.mMediaProfile.setRttMode(ImsStreamMediaProfile.RTT_MODE_FULL);
+            } else {
+                imsCallProfile.mMediaProfile.setRttMode(ImsStreamMediaProfile.RTT_MODE_DISABLED);
+                // auto accept PRTTCALL downgrade to MD
+                sendRttModifyResponse(true);
+            }
+
+            mListener.callSessionRttModifyRequestReceived(imsCallProfile);
+        }
+
+        /**
+         * Handle RTT audio indication change event
+         * @param ar Async result
+         */
+        private void handleRttAudioIndication(AsyncResult ar) {
+            /*
+             * AT<+EIMSAUDIOSID = <callId>,<audio>
+             * callId : call id
+             * audio : 0:audio, 1:slience
+             */
+
+            if (ar == null || mListener == null) {
+                logWithCallId("handleRttAudioIndication ar or mListener is null"
+                        , ImsCallLogLevel.ERROR);
+                return;
+            }
+            int[] result = (int[]) ar.result;
+            if (mCallId == null || result[0] != Integer.parseInt(mCallId)) {
+                return;
+            }
+            int status = result[1];
+            ImsStreamMediaProfile profile = new ImsStreamMediaProfile();
+            logWithCallId("handleRttAudioIndication audio: " + (status == RTT_AUDIO_SPEECH),
+                    ImsCallLogLevel.DEBUG);
+            profile.setReceivingRttAudio(status == RTT_AUDIO_SPEECH);
+            mListener.callSessionRttAudioIndicatorChanged(profile);
+        }
     }
 
     private void updateVideoRingtone(int ringCallMode, int isIbt) {
@@ -3115,6 +3500,7 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         notifyCallSessionMergeComplete();
         mIsMerging = false;
         mIsHideHoldEventDuringMerging = false;
+        mNeedHideResumeEventDuringMerging = false;
         ImsConferenceHandler.getInstance().modifyParticipantComplete();
 
         ImsCallSessionProxy hostCallSession = mImsServiceCT.getConferenceHostCall();
@@ -3122,10 +3508,10 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
             hostCallSession.onAddParticipantComplete();
         }
 
-        //clear mConfSessionProxy
-        //When host failed to merge, and merge it again as host.
-        //It will change to normal call merge conference call,
-        //this should be cleared.
+        // clear mConfSessionProxy
+        // When host failed to merge, and merge it again as host.
+        // It will change to normal call merge conference call,
+        // this should be cleared.
         mConfSessionProxy = null;
         mMtkConfSessionProxy = null;
     }
@@ -3144,7 +3530,9 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         mMergedCallStatus = ImsCallInfo.State.INVALID;
 
         mIsMerging = false;
+        mMerged = false;
         mIsHideHoldEventDuringMerging = false;
+        mNeedHideResumeEventDuringMerging = false;
         closeConferenceSession();
     }
 
@@ -3162,7 +3550,7 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                 return;
             }
 
-            updateRat(ratType);
+            updateRat(ratType, IMS_CALL_TYPE_UNKNOWN);
             if (mListener != null) {
                 logWithCallId("onHandover()", ImsCallLogLevel.DEBUG);
                 try {
@@ -3235,11 +3623,19 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     private void notifyCallSessionTerminated(ImsReasonInfo info) {
         if (mListener == null) {
             logWithCallId("notifyCallSessionTerminated() : mListener = NULL", ImsCallLogLevel.DEBUG);
-            close();
+            //Listener has not been set from upper, cache the ternimation.
+            synchronized (mLock) {
+                mCachedTerminateReasonInfo = info;
+            }
+            //has not recieved ECPI0, upper can't close proxy, so close here.
+            if (!mMTSetup) {
+                logWithCallId("has not received ECPI0, close here", ImsCallLogLevel.DEBUG);
+                close();
+            }
             return;
         }
 
-        if (mIsMerging && (mTerminateReason == ImsReasonInfo.CODE_USER_TERMINATED || mRadioUnavailable)) {
+        if (mIsMerging && (mLocalTerminateReason == ImsReasonInfo.CODE_USER_TERMINATED || mRadioUnavailable)) {
             logWithCallId("notifyCallSessionTerminated() : close while merging", ImsCallLogLevel.DEBUG);
             mergeFailed();
         }
@@ -3249,7 +3645,16 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                 if (mListener != null) {
                     // ALPS04082860 ImsCallSessionListener will catch RemoteException then throw RuntimeException.
                     try {
-                        mListener.callSessionInitiatedFailed(info);
+                        /// M: ALPS04251070, porting FDN issue for some customers' project,
+                        /// should call 'callSessionTerminated' when outgoing call failed by FDN,
+                        /// or else will return null in dial process. @{
+                        if (info.getCode() == ImsReasonInfo.CODE_FDN_BLOCKED &&
+                                getImsOemCallUtil().needReportCallTerminatedForFdn()) {
+                            mListener.callSessionTerminated(info);
+                        } else {
+                        /// @}
+                            mListener.callSessionInitiatedFailed(info);
+                        }
                     } catch (RuntimeException e) {
                         logWithCallId("RuntimeException callSessionInitiatedFailed()", ImsCallLogLevel.ERROR);
                         // RuntimeException happened, no one will close this CallSessionProxy,
@@ -3278,22 +3683,181 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         }
     }
 
-    private boolean updateRat(int ratType) {
+    // update rat when
+    // 1. Receive +EVADSREP for MO call
+    // 2. Receive +ECPI: 0 for MT call
+    // 3. 3gpp/non-3gpp handover
+    // 4. VoNR/LTE switch
+    // 5. Receive +ECPI: 130 for MO call on non-fusion ril.
+    private boolean updateRat(int ratType, int callRat) {
+        if (mRatType == ratType && mCallRat == callRat) {
+            return false;
+        }
+
+        // We assume emergency call won't handover currently.
+        // So only update callRat when unknown.
+        if (mRatType != IMS_CALL_TYPE_UNKNOWN && mIsEmergencyCall) {
+            return false;
+        }
+
         String radioTech;
-        if (ratType == WifiOffloadManager.RAN_TYPE_MOBILE_3GPP) {
+        int newCallRat = IMS_CALL_TYPE_UNKNOWN;
+
+        // Case 1/4.
+        if (callRat != IMS_CALL_TYPE_UNKNOWN) {
+            newCallRat = callRat;
+        // Case 2/3/5.
+        } else {
+            // non-3gpp handover to 3gpp, we can get LTE or NR from dataNetworkType,
+            // or wait call rat indication.
+            if (ratType == WifiOffloadManager.RAN_TYPE_MOBILE_3GPP) {
+                int dataNetworkType = getDataNetworkType();
+                logWithCallId("updateRat() : dataNetworkType is " + dataNetworkType,
+                        ImsCallLogLevel.DEBUG);
+                if (dataNetworkType == TelephonyManager.NETWORK_TYPE_LTE ||
+                        dataNetworkType == TelephonyManager.NETWORK_TYPE_LTE_CA) {
+                    newCallRat = IMS_CALL_TYPE_LTE;
+                } else if (dataNetworkType == TelephonyManager.NETWORK_TYPE_NR) {
+                    newCallRat = IMS_CALL_TYPE_NR;
+                }
+            } else if (ratType == WifiOffloadManager.RAN_TYPE_WIFI) {
+                newCallRat = IMS_CALL_TYPE_WIFI;
+            } else {
+                newCallRat = IMS_CALL_TYPE_UNKNOWN;
+            }
+        }
+
+        mRatType = ratType;
+        if (mCallRat != newCallRat) {
+            mCallRat = newCallRat;
+        } else {
+            return false;
+        }
+
+        if (mCallRat == IMS_CALL_TYPE_LTE) {
             radioTech = String.valueOf(ServiceState.RIL_RADIO_TECHNOLOGY_LTE);
-        } else if (ratType == WifiOffloadManager.RAN_TYPE_WIFI) {
+        } else if (mCallRat == IMS_CALL_TYPE_WIFI) {
             radioTech = String.valueOf(ServiceState.RIL_RADIO_TECHNOLOGY_IWLAN);
+        } else if (mCallRat == IMS_CALL_TYPE_NR) {
+            radioTech = String.valueOf(ServiceState.RIL_RADIO_TECHNOLOGY_NR);
         } else {
             radioTech = String.valueOf(ServiceState.RIL_RADIO_TECHNOLOGY_UNKNOWN);
         }
-        if (mRatType == ratType
-                && mCallProfile.getCallExtra(ImsCallProfile.EXTRA_CALL_RAT_TYPE).equals(radioTech)) {
-            return false;
-        }
-        mRatType = ratType;
         mCallProfile.setCallExtra(ImsCallProfile.EXTRA_CALL_RAT_TYPE, radioTech);
+
+        // set wificall flag to vtprovider on handover
+        if (mVTProvider != null) {
+            if (mCallRat == IMS_CALL_TYPE_WIFI) {
+                mVTProvider.onUpdateCallRat(ImsVTProviderUtil.CALL_RAT_WIFI);
+            } else if (mCallRat == IMS_CALL_TYPE_NR) {
+                mVTProvider.onUpdateCallRat(ImsVTProviderUtil.CALL_RAT_NR);
+            } else {
+                mVTProvider.onUpdateCallRat(ImsVTProviderUtil.CALL_RAT_LTE);
+            }
+        }
+        logWithCallId("updateRat() : mRatType is " + mRatType + ", mCallRat is " + mCallRat,
+                ImsCallLogLevel.DEBUG);
         return true;
+    }
+
+    private int getDataNetworkType() {
+        TelephonyManager tm = mContext.getSystemService(TelephonyManager.class);
+        ServiceState ss = tm.getServiceState();
+        final NetworkRegistrationInfo wwanRegInfo = ss.getNetworkRegistrationInfo(
+                NetworkRegistrationInfo.DOMAIN_PS, AccessNetworkConstants.TRANSPORT_TYPE_WWAN);
+        return wwanRegInfo.getAccessNetworkTechnology();
+    }
+
+    private void handleCallRatIndication(AsyncResult ar) {
+        /*
+         * +EVADSREP: <domain>, [<call rat>]
+         * <domain>: 0 = CS; 1 = IMS
+         * <call rat>: The rat of IMS call
+         * 1: LTE, 2: WiFi, 3: NR
+         */
+        int[] result = (int[]) ar.result;
+        int domain = result[0];
+        int callRat = result[1];
+
+        if (domain == 0) {
+            return;
+        } else if (callRat <= 0) {
+            callRat = IMS_CALL_TYPE_UNKNOWN;
+        }
+
+        boolean isCallRatUpdated = updateRat(mImsService.getRatType(mPhoneId), callRat);
+
+        if (isCallRatUpdated) {
+            notifyCallSessionUpdated();
+        }
+    }
+
+    private void handleCachedTerminateReason(ImsReasonInfo reasonInfo) {
+
+        ImsReasonInfo cachedInfo = reasonInfo;
+
+        if (reasonInfo == null) {
+            notifyCallSessionTerminated(new ImsReasonInfo());
+        } else {
+            notifyCallSessionTerminated(cachedInfo);
+        }
+    }
+
+    private void handleCallAdditionalInfo(AsyncResult ar) {
+        String[] additionalCallInfo = (String[]) ar.result;
+        int type = Integer.parseInt(additionalCallInfo[0]);
+        String callId = additionalCallInfo[1];
+
+        if (type == MT_CALL_IMS_GWSD) {
+            if (mCallId != null && mCallId.equals(callId)) {
+                mCallProfile.setCallExtraInt(ImsCallProfileEx.EXTRA_IMS_GWSD, 1);
+            }
+        } else if (type == MT_CALL_ENRICHED_CALL) {
+            if (mCallId != null && mCallId.equals(callId)) {
+                int subType =  Integer.parseInt(additionalCallInfo[2]);
+
+                if (subType == SUB_TYPE_HEADER) {
+                    int total = Integer.parseInt(additionalCallInfo[3]);
+                    int index = Integer.parseInt(additionalCallInfo[4]);
+                    int count = Integer.parseInt(additionalCallInfo[5]);
+                    if (index == 1) {
+                        mHeaderData = additionalCallInfo[6];
+                    } else {
+                        mHeaderData += additionalCallInfo[6];
+                    }
+                    if (index != total) {
+                        //do nothing
+                        return;
+                    }
+
+                    try {
+                        String[] split = mHeaderData.split(",");
+                        int headerCount = split.length/2;
+                        if (headerCount != count) {
+                            logWithCallId("Header count unmatched: " + count + ", " + headerCount,
+                                    ImsCallLogLevel.WARNNING);
+                        }
+                        for (int i = 0; i < headerCount; i++) {
+                            byte[] keyBytes = hexToByteArray(split[2*i]);
+                            byte[] valueBytes = hexToByteArray(split[2*i+1]);
+                            String key = new String(keyBytes, "UTF-8");
+                            String value = new String(valueBytes, "UTF-8");
+                            logWithCallId("key-value = " + key + "-" + value, ImsCallLogLevel.DEBUG);
+                            if (key != null && value != null) {
+                                mCallProfile.setCallExtra("mediatek:" + key.toLowerCase(), value);
+                            }
+                        }
+                    } catch (UnsupportedEncodingException ex) {
+                        Rlog.e(LOG_TAG, "handleCallAdditionalInfo() implausible UnsupportedEncodingException", ex);
+                    } catch (RuntimeException ex) {
+                        Rlog.e(LOG_TAG, "handleCallAdditionalInfo() RuntimeException", ex);
+                    }
+                } else if (subType == SUB_TYPE_LOCATION) {
+                    mCallProfile.setCallExtra(ImsCallProfileEx.EXTRA_LOCATION,
+                            additionalCallInfo[6]);
+                }
+            }
+        }
     }
 
     private void notifyRemoteHeld() {
@@ -3391,10 +3955,19 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         return false;
     }
 
-    private void updateShouldUpdateAddressByPau() {
-        // Do not use PAU to update address for JIO SIM
-        mShouldUpdateAddressByPau = getBooleanFromCarrierConfig(
-                ImsCarrierConfigConstants.MTK_KEY_CARRIER_UPDATE_DIALING_ADDRESS_FROM_PAU);
+    private void updateShouldUpdateAddress() {
+        // Do not use PAU to update address for MO call except some operators.
+        mShouldUpdateAddressByPau = (
+                OperatorUtils.isMatched(OperatorUtils.OPID.OP06, mPhoneId) ||
+                OperatorUtils.isMatched(OperatorUtils.OPID.OP08, mPhoneId)
+                );
+
+        mShouldUpdateAddressFromEcpi = (
+                OperatorUtils.isMatched(OperatorUtils.OPID.OP130, mPhoneId) ||
+                OperatorUtils.isMatched(OperatorUtils.OPID.OP120, mPhoneId) ||
+                OperatorUtils.isMatched(OperatorUtils.OPID.OP132, mPhoneId) ||
+                OperatorUtils.isMatched(OperatorUtils.OPID.OPOi, mPhoneId)
+                );
     }
 
     private void updateShouldUseSipField() {
@@ -3471,17 +4044,31 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     private void terminateConferenceSession() {
         if (mMtkConfSessionProxy != null) {
             logWithCallId("terminateConferenceSession() : Hangup Conference: Hangup host while merging (mtk)", ImsCallLogLevel.DEBUG);
-            MtkImsCallSessionProxy confSession = mMtkConfSessionProxy;
-            confSession.terminate(ImsReasonInfo.CODE_LOCAL_ILLEGAL_STATE);
-            ImsConferenceHandler.getInstance().closeConference(confSession.getCallId());
-            mParticipants.clear();
+            /// M: for ALPS04742742. @{
+            // maybe mMtkConfSessionProxy isn't initialized complete.
+            if (mMtkConfSessionProxy.getAospCallSessionProxy() != null) {
+            /// @}
+                MtkImsCallSessionProxy confSession = mMtkConfSessionProxy;
+                confSession.terminate(ImsReasonInfo.CODE_LOCAL_ILLEGAL_STATE);
+                ImsConferenceHandler.getInstance().closeConference(confSession.getCallId());
+                mParticipants.clear();
+            /// M: for ALPS04742742. @{
+            } else {
+                mHangupHostDuringMerge = true;
+                logWithCallId("terminateConferenceSession() : init conference object not compelted.", ImsCallLogLevel.DEBUG);
+            }
+            /// @}
         } else if (mConfSessionProxy != null) {
             logWithCallId("terminateConferenceSession() : Hangup Conference: Hangup host while merging (aosp)", ImsCallLogLevel.DEBUG);
             ImsCallSessionProxy confSession = mConfSessionProxy;
             confSession.terminate(ImsReasonInfo.CODE_LOCAL_ILLEGAL_STATE);
             ImsConferenceHandler.getInstance().closeConference(confSession.getCallId());
             mParticipants.clear();
+        /// M: for ALPS04742742 Hangup host before receive call id of conference call. @{
+        } else {
+            mHangupHostDuringMerge = true;
         }
+        /// @}
     }
 
     private void closeConferenceSession() {
@@ -3516,19 +4103,11 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                 }
             } catch (RuntimeException e) {
                 logWithCallId("RuntimeException callSessionMergeComplete()", ImsCallLogLevel.ERROR);
+                // RuntimeException happened, no one will close this CallSessionProxy,
+                // close it self.
+                close();
             }
         }
-    }
-
-    private boolean getBooleanFromCarrierConfig(String key) {
-        int subId = mImsService.getSubIdUsingPhoneId(mPhoneId);
-        CarrierConfigManager configMgr = (CarrierConfigManager) mContext.
-                                                getSystemService(Context.CARRIER_CONFIG_SERVICE);
-        PersistableBundle carrierConfig =
-                configMgr.getConfigForSubId(subId);
-        boolean result = carrierConfig.getBoolean(key);
-        logWithCallId("getBooleanFromCarrierConfig() : key = " + key + " result = " + result, ImsCallLogLevel.DEBUG);
-        return result;
     }
 
     private boolean isUserPerfromedHangup() {
@@ -3539,8 +4118,8 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     }
 
     private boolean shouldNotifyCallDropByBadWifiQuality() {
-        boolean notifyWifiQualityDisconnectCause = getBooleanFromCarrierConfig(
-                ImsCarrierConfigConstants.MTK_KEY_CARRIER_NOTIFY_BAD_WIFI_QUALITY_DISCONNECT_CAUSE);
+        boolean notifyWifiQualityDisconnectCause =
+                OperatorUtils.isMatched(OperatorUtils.OPID.OP07, mPhoneId);
         logWithCallId("shouldNotifyCallDropByBadWifiQuality() : "
                 + " carrier =  " + notifyWifiQualityDisconnectCause
                 + " isUserPerfromedHangup = " + isUserPerfromedHangup()
@@ -3584,11 +4163,11 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         if (callMode == IMS_VIDEO_CALL || callMode == IMS_VIDEO_CONF ||
                 callMode == IMS_VIDEO_CONF_PARTS) {
             switch(videoState) {
-                case VIDEO_STATE_PAUSE:  //pause
+                case VIDEO_STATE_PAUSE:  // pause
                     // mCallProfile.mCallType = ImsCallProfile.CALL_TYPE_VT_NODIR;
                     // logWithCallId("updateCallType() : mCallType = CALL_TYPE_VT_NODIR", ImsCallLogLevel.DEBUG);
                     break;
-                case VIDEO_STATE_SEND_ONLY:  //send only
+                case VIDEO_STATE_SEND_ONLY:  // send only
                     mCallProfile.mCallType = ImsCallProfile.CALL_TYPE_VT_TX;
                     logWithCallId("updateCallType() : mCallType = CALL_TYPE_VT_TX", ImsCallLogLevel.DEBUG);
                     break;
@@ -3605,7 +4184,11 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
                     logWithCallId("updateCallType() : mCallType = CALL_TYPE_VT", ImsCallLogLevel.DEBUG);
                     break;
             }
-            mWasVideoCallForRtt = true;
+            // For RTT: was video call cannot upgrade to RTT
+            if (isRttSupported()) {
+                mCallProfile.setCallExtraBoolean(EXTRA_WAS_VIDEO_CALL, true);
+                logWithCallId("updateCallType() : EXTRA_WAS_VIDEO_CALL = true", ImsCallLogLevel.DEBUG);
+            }
         } else if (callMode == IMS_VOICE_CALL || callMode == IMS_VOICE_CONF ||
                 callMode == IMS_VOICE_CONF_PARTS) {
             mCallProfile.mCallType = ImsCallProfile.CALL_TYPE_VOICE;
@@ -3633,7 +4216,8 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         }
 
         if (header.equalsIgnoreCase(SipMessage.REMOTE_DECLINE_HEADER) ||
-                header.toLowerCase().contains(SipMessage.CALL_DECLINED_HEADER)) {
+                header.toLowerCase().contains(SipMessage.CALL_DECLINED_HEADER) ||
+                header.toLowerCase().contains(SipMessage.CALL_COMPLETED_BUSY_EVERYWHERE_HEADER)) {
             return true;
         } else {
             return false;
@@ -3651,7 +4235,8 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         if (ImsCommonUtil.supportMdAutoSetupIms()) {
             participantUri = addr;
         } else {
-            participantUri = ImsConferenceHandler.getInstance().getConfParticipantUri(addr);
+            participantUri = ImsConferenceHandler.getInstance().getConfParticipantUri(addr, false);
+            mRetryRemoveUri = ImsConferenceHandler.getInstance().getConfParticipantUri(addr, true);
         }
 
         return participantUri;
@@ -3700,11 +4285,7 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     }
 
     private String sensitiveEncode(String msg) {
-        if (!SENLOG || TELDBG) {
-            return msg;
-        } else {
-            return "[hidden]";
-        }
+        return ImsServiceCallTracker.sensitiveEncode(msg);
     }
 
     private int getHangupCause(int reasionInfo) {
@@ -3731,73 +4312,62 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
 
         logWithCallId("handleSpeechCodecInfo() : " + codec, ImsCallLogLevel.DEBUG);
 
+        int oldAudioQuality = mLocalCallProfile.mMediaProfile.mAudioQuality;
+        int newAudioQuality = ImsStreamMediaProfile.AUDIO_QUALITY_NONE;
         switch (codec) {
             case QCELP13K:
-                mLocalCallProfile.mMediaProfile.mAudioQuality =
-                        ImsStreamMediaProfile.AUDIO_QUALITY_QCELP13K;
+                newAudioQuality = ImsStreamMediaProfile.AUDIO_QUALITY_QCELP13K;
                 break;
             case EVRC:
-                mLocalCallProfile.mMediaProfile.mAudioQuality =
-                        ImsStreamMediaProfile.AUDIO_QUALITY_EVRC;
+                newAudioQuality = ImsStreamMediaProfile.AUDIO_QUALITY_EVRC;
                 break;
             case EVRC_B:
-                mLocalCallProfile.mMediaProfile.mAudioQuality =
-                        ImsStreamMediaProfile.AUDIO_QUALITY_EVRC_B;
+                newAudioQuality = ImsStreamMediaProfile.AUDIO_QUALITY_EVRC_B;
                 break;
             case EVRC_WB:
-                mLocalCallProfile.mMediaProfile.mAudioQuality =
-                        ImsStreamMediaProfile.AUDIO_QUALITY_EVRC_WB;
+                newAudioQuality = ImsStreamMediaProfile.AUDIO_QUALITY_EVRC_WB;
                 break;
             case EVRC_NW:
-                mLocalCallProfile.mMediaProfile.mAudioQuality =
-                        ImsStreamMediaProfile.AUDIO_QUALITY_EVRC_NW;
+                newAudioQuality = ImsStreamMediaProfile.AUDIO_QUALITY_EVRC_NW;
                 break;
             case AMR_NB:
-                mLocalCallProfile.mMediaProfile.mAudioQuality =
-                        ImsStreamMediaProfile.AUDIO_QUALITY_AMR;
+                newAudioQuality = ImsStreamMediaProfile.AUDIO_QUALITY_AMR;
                 break;
             case AMR_WB:
-                mLocalCallProfile.mMediaProfile.mAudioQuality =
-                        ImsStreamMediaProfile.AUDIO_QUALITY_AMR_WB;
+                newAudioQuality = ImsStreamMediaProfile.AUDIO_QUALITY_AMR_WB;
                 break;
             case GSM_EFR:
-                mLocalCallProfile.mMediaProfile.mAudioQuality =
-                        ImsStreamMediaProfile.AUDIO_QUALITY_GSM_EFR;
+                newAudioQuality = ImsStreamMediaProfile.AUDIO_QUALITY_GSM_EFR;
                 break;
             case GSM_FR:
-                mLocalCallProfile.mMediaProfile.mAudioQuality =
-                        ImsStreamMediaProfile.AUDIO_QUALITY_GSM_FR;
+                newAudioQuality = ImsStreamMediaProfile.AUDIO_QUALITY_GSM_FR;
                 break;
             case GSM_HR:
-                mLocalCallProfile.mMediaProfile.mAudioQuality =
-                        ImsStreamMediaProfile.AUDIO_QUALITY_GSM_HR;
+                newAudioQuality = ImsStreamMediaProfile.AUDIO_QUALITY_GSM_HR;
                 break;
             case EVS_NB:
-                mLocalCallProfile.mMediaProfile.mAudioQuality =
-                        ImsStreamMediaProfile.AUDIO_QUALITY_EVS_NB;
+                newAudioQuality = ImsStreamMediaProfile.AUDIO_QUALITY_EVS_NB;
                 break;
             case EVS_WB:
-                mLocalCallProfile.mMediaProfile.mAudioQuality =
-                        ImsStreamMediaProfile.AUDIO_QUALITY_EVS_WB;
+                newAudioQuality = ImsStreamMediaProfile.AUDIO_QUALITY_EVS_WB;
                 break;
             case EVS_SW:
-                mLocalCallProfile.mMediaProfile.mAudioQuality =
-                        ImsStreamMediaProfile.AUDIO_QUALITY_EVS_SWB;
+                newAudioQuality = ImsStreamMediaProfile.AUDIO_QUALITY_EVS_SWB;
                 break;
             case EVS_FB:
-                mLocalCallProfile.mMediaProfile.mAudioQuality =
-                        ImsStreamMediaProfile.AUDIO_QUALITY_EVS_FB;
+                newAudioQuality = ImsStreamMediaProfile.AUDIO_QUALITY_EVS_FB;
                 break;
             case EVS_AWB:
-                mLocalCallProfile.mMediaProfile.mAudioQuality =
-                        MtkImsConstants.AUDIO_QUALITY_EVS_AWB;
+                newAudioQuality = ImsStreamMediaProfile.AUDIO_QUALITY_AMR_WB;
                 break;
             default:
-                mLocalCallProfile.mMediaProfile.mAudioQuality =
-                        ImsStreamMediaProfile.AUDIO_QUALITY_NONE;
+                newAudioQuality = ImsStreamMediaProfile.AUDIO_QUALITY_NONE;
                 break;
         }
-        notifyCallSessionUpdated();
+        if (newAudioQuality != oldAudioQuality) {
+            mLocalCallProfile.mMediaProfile.mAudioQuality = newAudioQuality;
+            notifyCallSessionUpdated();
+        }
     }
 
     private void turnOffAirplaneMode() {
@@ -3820,27 +4390,33 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     private void handleRedialEccIndication(AsyncResult ar) {
         // +ERDECCIND: <call_id>
         Rlog.d(LOG_TAG, "handleRedialEccIndication()");
-
-        if (ar == null || mMtkImsCallSessionProxy == null) {
+        if (ar == null) {
             if (DBG) {
-                Rlog.d(LOG_TAG, "handleRedialEccIndication() : ar or mMtkImsCallSessionProxy is null");
+                Rlog.d(LOG_TAG, "handleRedialEccIndication() : ar is null");
             }
             return;
         }
-
         // No need to handle when call established
         if (mState == ImsCallSession.State.ESTABLISHED) {
             Rlog.d(LOG_TAG, "handleRedialEccIndication() : Call established, ignore indication");
             return;
         }
 
-        // No need to notify ecc when call id not much (Ex: id = 0)
         String[] result = (String[]) ar.result;
-        if ((result != null && result[0].equals("0"))) {
+        if (result == null) {
+            Rlog.d(LOG_TAG, "handleRedialEccIndication() : ar.result is null");
+            return;
+        }
+        if (result[0].equals("0")) {
             turnOffAirplaneMode();
-
-        } else if ((result != null && result[0].equals(mCallId))) {
-            mMtkImsCallSessionProxy.notifyRedialEcc();
+        } else if (mMtkImsCallSessionProxy != null) {
+            if (result[0].equals("30")) {
+                // Need user to deactivate the flight mode to continue the CS normal call
+                mMtkImsCallSessionProxy.notifyRedialEcc(true);
+            } else if (result[0].equals(mCallId)) {
+                // Notify UI the call is redialed as ECC call
+                mMtkImsCallSessionProxy.notifyRedialEcc(false);
+            }
         }
     }
 
@@ -3858,12 +4434,10 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
             return "EVENT_CALL_MODE_CHANGE_INDICATION";
         } else if (EVENT_VIDEO_CAPABILITY_INDICATION == event) {
             return "EVENT_VIDEO_CAPABILITY_INDICATION";
-        } else if (EVENT_ON_USSI == event) {
-            return "EVENT_ON_USSI";
         } else if (EVENT_ECT_RESULT_INDICATION == event) {
             return "EVENT_ECT_RESULT_INDICATION";
-        } else if (EVENT_GTT_CAPABILITY_INDICATION == event) {
-            return "EVENT_GTT_CAPABILITY_INDICATION";
+        } else if (EVENT_RTT_CAPABILITY_INDICATION == event) {
+            return "EVENT_RTT_CAPABILITY_INDICATION";
         } else if (EVENT_IMS_CONFERENCE_INDICATION == event) {
             return "EVENT_IMS_CONFERENCE_INDICATION";
         } else if (EVENT_DIAL_RESULT == event) {
@@ -3906,12 +4480,24 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
             return "EVENT_RTT_MODIFY_RESPONSE";
         } else if (EVENT_RTT_MODIFY_REQUEST_RECEIVE == event) {
             return "EVENT_RTT_MODIFY_REQUEST_RECEIVE";
+        } else if (EVENT_RTT_AUDIO_INDICATION == event) {
+            return "EVENT_RTT_AUDIO_INDICATION";
         } else if (EVENT_DIAL_FROM_RESULT == event) {
             return "EVENT_DIAL_FROM_RESULT";
         } else if (EVENT_DEVICE_SWITCH_REPONSE == event) {
             return "EVENT_DEVICE_SWITCH_REPONSE";
         } else if (EVENT_SPEECH_CODEC_INFO == event) {
             return "EVENT_SPEECH_CODEC_INFO";
+        } else if (EVENT_REDIAL_ECC_INDICATION == event) {
+            return "EVENT_REDIAL_ECC_INDICATION";
+        } else if (EVENT_ON_SUPP_SERVICE_NOTIFICATION == event) {
+            return "EVENT_ON_SUPP_SERVICE_NOTIFICATION";
+        } else if (EVENT_SIP_HEADER_INFO == event) {
+            return "EVENT_SIP_HEADER_INFO";
+        } else if (EVENT_CALL_RAT_INDICATION == event) {
+            return "EVENT_CALL_RAT_INDICATION";
+        } else if (EVENT_CACHED_TERMINATE_REASON == event) {
+            return "EVENT_CACHED_TERMINATE_REASON";
         } else {
             return "unknown msg" + event;
         }
@@ -3925,9 +4511,8 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         mMtkImsCallSessionProxy = callSessionProxy;
     }
 
-    public ImsCallPluginBase getImsExtCallUtil() {
-
-        ExtensionPluginFactory facotry = ExtensionFactory.makeExtensionPluginFactory();
+    public ImsCallOemPlugin getImsOemCallUtil() {
+        OemPluginFactory facotry = ExtensionFactory.makeOemPluginFactory(mContext);
         return facotry.makeImsCallPlugin(mContext);
     }
 
@@ -3935,8 +4520,8 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
         Context context, Handler handler, ImsCallSessionProxy callSessionProxy,
         ImsCommandsInterface imsRILAdapter, ImsService imsService, int phoneId) {
 
-        ExtensionPluginFactory facotry = ExtensionFactory.makeExtensionPluginFactory();
-        return facotry.makeImsSelfActivator(context, handler, this, imsRILAdapter, imsService, phoneId);
+        ExtensionPluginFactory facotry = ExtensionFactory.makeExtensionPluginFactory(mContext);
+        return facotry.makeImsSelfActivator(mContext, handler, this, imsRILAdapter, imsService, phoneId);
     }
 
     /// M: E911 During VoLTE off @{
@@ -3956,30 +4541,160 @@ public class ImsCallSessionProxy extends ImsCallSessionImplBase {
     }
     /// @}
 
-    private void enableRttAudioIndication() {
-        if (mState != ImsCallSession.State.ESTABLISHED) {
-            logWithCallId("enableRttAudioInication() : call not established", ImsCallLogLevel.DEBUG);
-            return;
+    // M: send RTT BOM(Byte order mark)
+    private void checkAndSendRttBom() {
+        boolean isRttSupport = isRttSupported();
+        logWithCallId("checkAndSendRttBom() : isRttSuported = " + isRttSupport +
+                ", isRttEnabledForCallSession = " + mIsRttEnabledForCallSession +
+                ", mState = " + mState + ", mEnableSendRttBom = " + mEnableSendRttBom,
+                ImsCallLogLevel.DEBUG);
+        if (isRttSupport && mIsRttEnabledForCallSession && mEnableSendRttBom &&
+                mState == ImsCallSession.State.ESTABLISHED) {
+            byte[] bom = new byte[]{(byte)0xEF, (byte)0xBB, (byte)0xBF};
+            sendRttMessage(new String(bom));
+            mEnableSendRttBom = false;
         }
-
-        mOpExt.enableRttAudioIndication(mCallId, mImsRILAdapter);
     }
 
-    private void handleAudioIndication(AsyncResult ar) {
-        // AT<+EIMSAUDIOSID: <call id>, <silence_indication>
-        Rlog.d(LOG_TAG, "handleAudioIndication()");
+    // For VzW Client API
+    // This mode is set by call because each incoming call can dynamically decide handled by Client API or AOSP.
+    public void setImsCallMode(int mode) {
+        mImsCallMode = mode;
+        if (mode == IMS_CALL_MODE_CLIENT_API) {
+            mIsRingingRedirect = true;
+            mImsRILAdapter.setImsCallMode(2, null);
+        }
+    }
 
-        if (ar == null || mMtkImsCallSessionProxy == null) {
-            if (DBG) {
-                Rlog.d(LOG_TAG, "handleAudioIndication() : ar or mMtkImsCallSessionProxy is null");
-            }
+    // TODO: mParticipantsList can't guarantee the order because we may reorder it when try to restore the number.
+    public void removeLastParticipant() {
+        if (mCallId == null) {
+            logWithCallId("removeLastParticipant() : fail since no call ID" +
+                    " CallID = " + mCallId, ImsCallLogLevel.ERROR);
             return;
         }
 
-        int[] result = (int[]) ar.result;
-        int speech = result[1];
+        int size = mParticipantsList.size();
+        if (mCallId != null && size > 1) {
+            // get last participant
+            String addr = mParticipantsList.get(size - 1);
+            String participantUri = getConfParticipantUri(addr);
+            Message result = mHandler.obtainMessage(EVENT_REMOVE_CONFERENCE_RESULT);
+            mImsRILAdapter.removeParticipants(Integer.parseInt(mCallId), participantUri, result);
 
-        // RTT audio indication
-        mOpExt.handleRttSpeechEvent(mMtkImsCallSessionProxy.getServiceImpl(), speech);
+            // ImsConferenceHandler.getInstance().tryRemoveParticipant(addr);
+        } else {
+            logWithCallId("removeLastParticipant() : Participant number = " + size, ImsCallLogLevel.ERROR);
+             // terminate
+            logWithCallId("removeLastParticipant() : terminate", ImsCallLogLevel.DEBUG);
+            terminate(ImsReasonInfo.CODE_UNSPECIFIED);
+        }
+    }
+
+    public String getHeaderCallId() {
+        return mHeaderCallId;
+    }
+
+    private void handleSipHeaderInfo(AsyncResult ar) {
+        String[] sipHeaderInfo = (String[]) ar.result;
+        if (mCallId != null && mCallId.equals(sipHeaderInfo[0])) {
+            int headerType = 0;
+            int totalCount = 0;
+            int index = 0;
+            if ((sipHeaderInfo[1] != null) && (!sipHeaderInfo[1].equals(""))) {
+                headerType = Integer.parseInt(sipHeaderInfo[1]);
+            }
+
+            // TODO: Currently we assume totalCount will only be 1, need to handle it if sip header info value too long.
+            if ((sipHeaderInfo[2] != null) && (!sipHeaderInfo[2].equals(""))) {
+                totalCount = Integer.parseInt(sipHeaderInfo[2]);
+            }
+
+            if ((sipHeaderInfo[3] != null) && (!sipHeaderInfo[3].equals(""))) {
+                index = Integer.parseInt(sipHeaderInfo[3]);
+            }
+
+            if (headerType == HEADER_CALL_ID) {
+                String headerCallId = "";
+                if ((sipHeaderInfo[4] != null) && (!sipHeaderInfo[4].equals(""))) {
+                    headerCallId = sipHeaderInfo[4];
+                }
+
+                try {
+                    byte[] bytes = hexToByteArray(headerCallId);
+                    mHeaderCallId = new String(bytes, "UTF-8");
+                    logWithCallId("handleSipHeaderInfo() : mHeaderCallId: " + mHeaderCallId,
+                            ImsCallLogLevel.DEBUG);
+                } catch (UnsupportedEncodingException ex) {
+                    Rlog.e(LOG_TAG, "handleSipHeaderInfo() implausible UnsupportedEncodingException", ex);
+                } catch (RuntimeException ex) {
+                    Rlog.e(LOG_TAG, "handleSipHeaderInfo() RuntimeException", ex);
+                }
+            }
+        }
+    }
+
+    private byte[] hexToByteArray(String hex) {
+        hex = hex.length()%2 != 0?"0"+hex:hex;
+
+        byte[] b = new byte[hex.length() / 2];
+
+        for (int i = 0; i < b.length; i++) {
+            int index = i * 2;
+            int v = Integer.parseInt(hex.substring(index, index + 2), 16);
+            b[i] = (byte) v;
+        }
+        return b;
+    }
+
+    private void processMtRttWithoutPrecondition(int remoteCapability) {
+        boolean isWithoutPrecondition = isMtRttWithoutPrecondition();
+        if (DBG) {
+            logWithCallId("processMtRttWithoutPrecondition: isWithoutPrecondition="
+                    + isWithoutPrecondition, ImsCallLogLevel.DEBUG);
+        }
+        if (isWithoutPrecondition && mState == ImsCallSession.State.IDLE) {
+            mIsRttEnabledForCallSession = remoteCapability == 1;
+        }
+    }
+
+    private boolean isMtRttWithoutPrecondition() {
+        TelephonyManager tm = mContext.getSystemService(TelephonyManager.class);
+        PersistableBundle bundle = tm.getCarrierConfig();
+        return bundle.getBoolean(
+                ImsCarrierConfigConstants.MTK_KEY_MT_RTT_WITHOUT_PRECONDITION_BOOL, false);
+    }
+
+    private void toggleRttAudioIndication() {
+        if (!isRttSupported()) {
+            return;
+        }
+
+        int callId = Integer.parseInt(mCallId);
+
+        /**
+         * AT+>EIMSAUDIOSID: <callId>, <enable>
+         * 1: enable RTT audio indication
+         * 0: disable RTT audio indication
+         */
+
+        if (mIsRttEnabledForCallSession) {
+            logWithCallId("toggleRttAudioIndication: enable RTT audio indication.", ImsCallLogLevel.DEBUG);
+            mImsRILAdapter.toggleRttAudioIndication(callId, 1, null);
+        } else if(mState == ImsCallSession.State.ESTABLISHED) {
+            logWithCallId("toggleRttAudioIndication: disable RTT audio indication.", ImsCallLogLevel.DEBUG);
+            mImsRILAdapter.toggleRttAudioIndication(callId, 0, null);
+        }
+    }
+
+    private boolean isAllowRttVideoSwitch() {
+        boolean wasVideoCall = mCallProfile.getCallExtraBoolean(EXTRA_WAS_VIDEO_CALL);
+
+        TelephonyManager tm = mContext.getSystemService(TelephonyManager.class);
+        PersistableBundle bundle = tm.getCarrierConfig();
+        boolean isRttVideoSwitchable = bundle.getBoolean(
+                ImsCarrierConfigConstants.MTK_KEY_RTT_VIDEO_SWITCH_SUPPORTED_BOOL, false);
+
+        return isRttVideoSwitchable? true: !wasVideoCall;
     }
 }

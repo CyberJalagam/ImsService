@@ -4,6 +4,7 @@ import android.content.Context;
 import android.os.Build;
 import android.os.SystemProperties;
 import android.telephony.ims.ImsReasonInfo;
+import android.telephony.Rlog;
 import android.telephony.SubscriptionManager;
 import android.text.TextUtils;
 
@@ -24,6 +25,8 @@ public class ImsConfigAdapter {
     ImsConfigStorage mStorage;
     ImsConfigController mController;
 
+    private String mLogTag;
+
     private int mPhoneId = SubscriptionManager.INVALID_PHONE_INDEX;
 
     private Context mContext = null;
@@ -37,6 +40,8 @@ public class ImsConfigAdapter {
     public ImsConfigAdapter(Context context, ImsCommandsInterface imsRilAdapter, int phoneId) {
         mContext = context;
         mPhoneId = phoneId;
+
+        mLogTag = TAG + "[" + phoneId + "]";
 
         if (ImsCommonUtil.supportMdAutoSetupIms()) {
             mController = new ImsConfigController(context, phoneId, imsRilAdapter);
@@ -123,7 +128,7 @@ public class ImsConfigAdapter {
     public void setImsResCapability(int featureId, int value)
             throws ImsException {
         if (ImsCommonUtil.supportMdAutoSetupIms()) {
-            mController.setImsResCapability(featureId, value);
+            Rlog.e(mLogTag, "setImsResCapability not supported!");
         } else {
             mStorage.setImsResCapability(featureId, value);
         }

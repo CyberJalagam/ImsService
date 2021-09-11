@@ -43,9 +43,8 @@ import android.util.Log;
 
 import com.android.internal.telephony.PhoneConstants;
 
-import com.mediatek.internal.telephony.MtkPhoneConstants;
 import com.mediatek.ims.common.SubscriptionManagerHelper;
-import com.mediatek.internal.telephony.RadioCapabilitySwitchUtil;
+import com.mediatek.ims.ImsConstants;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -72,8 +71,21 @@ public class OperatorUtils {
         OP15, // Telefonica
         OP16, // EE
         OP18, // RJIL
+        OP50, // Softbank
         OP129,  // KDDI
         OP156,  // Telenor
+        OP130, // Brazil-TIM
+        OP120, // Brazil-Claro
+        OP132, // Brazil-v1vo
+        OPOi,  // Brazil-Oi
+        OP165, // Sunrise
+        OP152, // Optus
+        OP117, // Smartfen
+        OP131, // TrueMove
+        OP125, // DTAC
+        OP132_Peru, // Movistar
+        OP147, //Airtel-India
+        OP151, // M1
         OP236,  // USCC
     }
 
@@ -96,9 +108,11 @@ public class OperatorUtils {
                     "23003", "23099", "60202", "28802", "54201", "26202", "26204", "26209",
                     "62002", "20205", "21670", "27402", "27403", "27201", "22210", "27801",
                     "53001", "26801", "22601", "42702"));
-            put(OPID.OP07, Arrays.asList("31030", "31070", "31080", "31090", "310150",
+            put(OPID.OP07, Arrays.asList("310030", "310070", "310090", "310150",
                     "310170", "310280", "310380", "310410", "310560", "310680", "311180"));
-            put(OPID.OP08, Arrays.asList("310160", "310260", "310490", "310580", "310660"));
+            put(OPID.OP08, Arrays.asList("310160", "310260", "310490", "310580", "310660",
+                    "310200", "310210", "310220", "310230", "310240", "310250", "310270",
+                    "310310", "310800"));
             put(OPID.OP09, Arrays.asList("46003", "46011", "46012", "45502", "45507"));
             put(OPID.OP11, Arrays.asList("23420"));
             put(OPID.OP12, Arrays.asList("310590", "310890", "311270", "311480"));
@@ -107,13 +121,29 @@ public class OperatorUtils {
             put(OPID.OP18, Arrays.asList("405854", "405855", "405856","405872", "405857", "405858",
                     "405859", "405860", "405861", "405862", "405873", "405863", "405864", "405874",
                     "405865", "405866", "405867", "405868", "405869", "405871", "405870", "405840"));
-
+            put(OPID.OP50, Arrays.asList("44020"));
             put(OPID.OP129, Arrays.asList("44007", "44008",
                     "44050", "44051", "44052", "44053", "44054", "44055", "44056",
                     "44070", "44071", "44072", "44073", "44074", "44075", "44076", "44077", "44078", "44079",
                     "44088", "44089", "44110", "44170"));
 
             put(OPID.OP156, Arrays.asList("23802"));
+            put(OPID.OP130, Arrays.asList("72402", "72403", "72404"));
+            put(OPID.OP120, Arrays.asList("72405"));
+            put(OPID.OP132, Arrays.asList("72406", "72410", "72411", "72423"));
+            put(OPID.OPOi, Arrays.asList("72416", "72424", "72431"));
+            put(OPID.OP165, Arrays.asList("22802"));
+            put(OPID.OP152, Arrays.asList("50502"));
+            put(OPID.OP117, Arrays.asList("51009", "51028"));
+            put(OPID.OP131, Arrays.asList("52004"));
+            put(OPID.OP125, Arrays.asList("52005"));
+            put(OPID.OP132_Peru, Arrays.asList("71606"));
+            put(OPID.OP147, Arrays.asList("40410", "40431",
+                "40440", "40445", "40449", "40551", "40552", "40553", "40554", "40555",
+                "40556", "40490", "40492", "40493", "40494", "40495", "40496", "40497",
+                "40498", "40402", "40403", "40416", "40470", "405030","405035","405036",
+                "405037","405038","405039","405044"));
+            put(OPID.OP151, Arrays.asList("52503"));
             put(OPID.OP236, Arrays.asList("31100", "311220", "311221", "311222", "311223", "311224",
                     "311225", "311226", "311227", "311228", "311229", "311580", "311581", "311582",
                     "311583", "311584", "311585", "311586", "311587", "311588", "311589"));
@@ -136,7 +166,7 @@ public class OperatorUtils {
     }
 
     private static int getMainCapabilityPhoneId() {
-       int phoneId = SystemProperties.getInt(MtkPhoneConstants.PROPERTY_CAPABILITY_SWITCH, 1) - 1;
+       int phoneId = SystemProperties.getInt(ImsConstants.PROPERTY_CAPABILITY_SWITCH, 1) - 1;
        if (phoneId < 0 || phoneId >= TelephonyManager.getDefault().getPhoneCount()) {
            phoneId = SubscriptionManager.INVALID_PHONE_INDEX;
        }

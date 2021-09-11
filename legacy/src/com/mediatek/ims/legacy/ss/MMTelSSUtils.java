@@ -44,6 +44,7 @@ import java.net.Socket;
 /// SS OP01 Ut @{
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 /// @}
 import javax.net.SocketFactory;
 
@@ -62,6 +63,8 @@ import com.android.ims.ImsManager;
 
 import com.google.i18n.phonenumbers.PhoneNumberUtil;
 
+import com.mediatek.internal.telephony.dataconnection.MtkDcHelper;
+import com.mediatek.internal.telephony.MtkSuppServHelper;
 import com.mediatek.ims.internal.ImsXuiManager;
 import com.mediatek.ims.SuppSrvConfig;
 import com.mediatek.simservs.client.SimServs;
@@ -159,15 +162,21 @@ public class MMTelSSUtils {
             impi = MtkTelephonyManagerEx.getDefault().getIsimImpi(subId);
 
             if (isValidIMPI(impi)) {  // ISIM
-                if (!SENLOG || TELDBG) {
-                    Rlog.d(LOG_TAG, "getXcapRootUri():get APP_FAM_IMS and impi=" + impi);
-                } else {
-                    Rlog.d(LOG_TAG, "getXcapRootUri():get APP_FAM_IMS and impi=[hidden]");
-                }
+                Rlog.d(LOG_TAG, "getXcapRootUri():get APP_FAM_IMS and impi=" +
+                        MtkSuppServHelper.encryptString(impi));
                 mSimservs.setXcapRootByImpi(impi);
             } else {
                 String mccMnc = null;
-                mccMnc = TelephonyManager.getDefault().getSimOperator(subId);
+                if (MtkDcHelper.isCdma4GDualModeCard(phoneId)) {
+                    mccMnc = MtkTelephonyManagerEx.getDefault()
+                              .getSimOperatorNumericForPhoneEx(phoneId)[0];
+                    if (mccMnc == null || mccMnc.length() <= 0) {
+                        mccMnc = TelephonyManager.getDefault().getSimOperator(subId);
+                    }
+                } else {
+                    mccMnc = TelephonyManager.getDefault().getSimOperator(subId);
+                }
+
                 String mcc = "";
                 String mnc = "";
                 if (!TextUtils.isEmpty(mccMnc)) {
@@ -206,7 +215,7 @@ public class MMTelSSUtils {
      */
     public static String getXui(int phoneId, Context context) {
         String  sXui = ImsXuiManager.getInstance().getXui(phoneId);
-        Rlog.d(LOG_TAG, "getXui():sXui from XuiManager=" + sXui);
+        Rlog.d(LOG_TAG, "getXui():sXui from XuiManager = " + MtkSuppServHelper.encryptString(sXui));
         int subId = getSubIdUsingPhoneId(phoneId);
         if (sXui == null) {
             //Get XUI (P-Associated-URI header) from storage (updated by IMSA) (IR.92) - wait for
@@ -224,7 +233,7 @@ public class MMTelSSUtils {
             //XUI= tel:+8613810290014,sip:+8613810290014@bj.ims.mnc000.mcc460.3gppnetwork.org
             SimServs simSrv = SimServs.getInstance();
             sXui = simSrv.getXui();
-            Rlog.d(LOG_TAG, "getXui():sXui from simSrv=" + sXui);
+            Rlog.d(LOG_TAG, "getXui():sXui from simSrv=" + MtkSuppServHelper.encryptString(sXui));
             if (sXui != null) {
                 sXui = getSipUriFromXui(sXui);
                 simSrv.setXui(sXui);
@@ -239,7 +248,7 @@ public class MMTelSSUtils {
 
                 if (impu != null && impu[0] != null && !impu[0].isEmpty()) {
                     sImpu = impu[0];
-                    Rlog.d(LOG_TAG, "getXui():sImpu=" + sImpu);
+                    Rlog.d(LOG_TAG, "getXui():sImpu=" + MtkSuppServHelper.encryptString(sImpu));
                     mSimservs.setXuiByImpu(sImpu);
                 } else {
                     //SIM/USIM is ready but it may not read all records successfully at this time
@@ -248,13 +257,19 @@ public class MMTelSSUtils {
                     String sImsi = telephonyManager.getSubscriberId(getSubIdUsingPhoneId(phoneId));
                     Rlog.d(LOG_TAG, "getXui():IMS uiccApp is null, try to select USIM uiccApp");
 
-                    String mccMnc = TelephonyManager.getDefault().getSimOperator(subId);
+                    String mccMnc = "";
 
-                    if (!SENLOG || TELDBG) {
-                        Rlog.d(LOG_TAG, "getXui():Imsi=" + sImsi + ", mccMnc=" + mccMnc);
+                    if (MtkDcHelper.isCdma4GDualModeCard(phoneId)) {
+                        mccMnc = MtkTelephonyManagerEx.getDefault()
+                                  .getSimOperatorNumericForPhoneEx(phoneId)[0];
+                        if (mccMnc == null || mccMnc.length() <= 0) {
+                            mccMnc = TelephonyManager.getDefault().getSimOperator(subId);
+                        }
                     } else {
-                        Rlog.d(LOG_TAG, "getXui():Imsi=[hidden], mccMnc=" + mccMnc);
+                        mccMnc = TelephonyManager.getDefault().getSimOperator(subId);
                     }
+
+                    Rlog.d(LOG_TAG, "getXui():Imsi=" + MtkSuppServHelper.encryptString(sImsi) + ", mccMnc=" + mccMnc);
 
                     if (!TextUtils.isEmpty(mccMnc)) {
                         mSimservs.setXuiByImsiMccMnc(sImsi, mccMnc.substring(0, 3),
@@ -264,7 +279,7 @@ public class MMTelSSUtils {
 
                 //Originally:sXui is null. Now:re-obtain sXui again
                 sXui = mSimservs.getXui();
-                Rlog.d(LOG_TAG, "getXui():sXui=" + sXui);
+                Rlog.d(LOG_TAG, "getXui():sXui=" + MtkSuppServHelper.encryptString(sXui));
                 return sXui;
             }
         } else {
@@ -367,11 +382,11 @@ public class MMTelSSUtils {
         }
 
         if (dialNumber.substring(0, 1).equals("+")) {
-            Rlog.d(LOG_TAG, "No need to append country code: " + dialNumber);
+            Rlog.d(LOG_TAG, "No need to append country code: " + MtkSuppServHelper.encryptString(dialNumber));
             return dialNumber;
         } else {
             String dialNumberWithCountryCode = "+" + countryCodeStr + dialNumber;
-            Rlog.d(LOG_TAG, "dialNumberWithCountryCode: " + dialNumberWithCountryCode);
+            Rlog.d(LOG_TAG, "dialNumberWithCountryCode: " + MtkSuppServHelper.encryptString(dialNumberWithCountryCode));
             return dialNumberWithCountryCode;
         }
     }
@@ -382,11 +397,7 @@ public class MMTelSSUtils {
      * @return ture if it is valid IMPI
      */
     public static boolean isValidIMPI(String impi) {
-        if (!SENLOG || TELDBG) {
-            Rlog.d(LOG_TAG, "isValidIMPI, impi= " + impi);
-        } else {
-            Rlog.d(LOG_TAG, "isValidIMPI, impi= [hidden]");
-        }
+        Rlog.d(LOG_TAG, "isValidIMPI, impi= " + MtkSuppServHelper.encryptString(impi));
 
         boolean validIMPI = (impi != null) && (!impi.isEmpty()) && (impi.contains("@"));
         return validIMPI;
@@ -420,7 +431,7 @@ public class MMTelSSUtils {
         if (isContainSipUri == false) {
             sipXui = sXuiArray[0];
         }
-        Rlog.d(LOG_TAG, "getSipUriFromXui: " + sipXui);
+        Rlog.d(LOG_TAG, "getSipUriFromXui: " + MtkSuppServHelper.encryptString(sipXui));
         return sipXui;
     }
 
@@ -433,5 +444,4 @@ public class MMTelSSUtils {
             return values[0];
         }
     }
-
 }
